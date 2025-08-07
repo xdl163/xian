@@ -1,0 +1,12 @@
+[BUG]: no found input "onefile"
+
+## Command Line
+C:\Users\Lenovo\.conda\envs\xian\Scripts\pyarmor gen --enable-bcc onefile main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/
+
+## Environments
+Python 3.12.11
+Pyarmor 9.1.7 (pro), 007552, breakyarn
+Platform windows.x86_64
+Native windows.amd64
+Home C:\Users\Lenovo\.pyarmor
+
