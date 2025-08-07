@@ -1,0 +1,50 @@
+Dear 18565104896，
+
+Thank you for purchasing Pyarmor Pro License, here it is activation code for license no. "pyarmor-vax-7552"
+
+llBnKrdCT3KXI37FVnXt69H1AyRr3JoaNjDHATVcDhiiqAxxqmQFkNbSif3OoVKg8Fp_TmKt13o_yqtK3rG-Jcebs_B8jIJeYXek9v49zpNDQzynmd1o-TmO5NEdQMhs8PwQhEeYkbbUacwgmTk2qax5VviAV6boPIDbBDwRnPEYzwZGEz5B7tEpYa6jLLJU
+
+Internet connection and Pyarmor 9.0+ are required to activate this code, install Pyarmor and check Pyarmor version by this command
+
+    pip install -U pyarmor
+    pyarmor -v
+
+Here are initial registration steps:
+
+1. Download the attachment of this email, save it as "pyarmor-regcode-7552.txt"
+
+2. Run the following command to activate this license, please replace "XXX" with product name or "non-profits" (only for obfuscating non-commercial projects)
+
+     pyarmor reg -p XXX pyarmor-regcode-7552.txt
+
+3. The registration file "pyarmor-regfile-7552.zip" will be created in the current path if this license is activated sucessfully
+
+IMPORTANT NOTES:
+
+* Please backup "pyarmor-regcode-7552.txt", but do not use it to register Pyarmor
+* Please backup regfile "pyarmor-regfile-7552.zip", and use this file for next any registration
+* Do not use this file in docker container and CI/CD pipeline
+* Pyarmor Team doesn't provide LOST FOUND SERVICE
+
+This registration file can be used to register Pyarmor in at most 100 devices
+
+    pyarmor reg pyarmor-regfile-7552.zip
+
+Check the new registration information
+
+    pyarmor -v
+
+On each device it's enough to register Pyarmor once, do not register Pyarmor before each obfuscation
+
+If register "pyarmor-regfile-7552.zip" in docker container or CI/CD pipeline, each run will be taken as one new device
+
+Pyarmor is well document, here is online documentation
+
+    https://pyarmor.readthedocs.io/en/latest/
+
+If there is any question, check this page for the solutions
+
+    https://pyarmor.readthedocs.io/en/latest/questions.html
+
+Best Regards
+Pyarmor Team
