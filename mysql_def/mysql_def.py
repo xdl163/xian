@@ -37,7 +37,10 @@ class XianDB:
         os.makedirs(self.save_dir, exist_ok=True)
         self.closed = False
         atexit.register(self.close)  # 注册退出时自动调用 close()
+        self.init_database_and_table()
+        self.create_video_table()
         print('数据库初始化成功')
+
 
     def __enter__(self):
         return self
@@ -208,13 +211,7 @@ class XianDB:
 
 
 # if __name__ == '__main__':
-#     with XianDB(port=33070) as xiandb:
-#         # 获取当前时间戳
-#         current_timestamp = time.time()
+#     with XianDB(host='127.0.0.1',port=3306,user='root',password='xu12345678gh',) as xiandb:
 #
-#         # 获取一个星期之前的时间戳
-#         one_week_ago_timestamp = current_timestamp - (2 * 24 * 60 * 60)
-#
-#         xiandb.delete_events_before(one_week_ago_timestamp)
 
 

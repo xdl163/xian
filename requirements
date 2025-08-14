@@ -1,0 +1,11 @@
+PyQt5
+numpy
+opencv-python
+pymysql
+cryptography
+requests
+pyarmor
+pyinstaller
+pyyaml
+pycryptodome
+pyserial
