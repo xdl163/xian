@@ -1,10 +1,10 @@
-video_path: "C:/Users/10561/datasets/xian/yaml4"  #摄像头参数配置文件目录
+video_path: "F:/xian/yaml4"  #摄像头参数配置文件目录
 image_size: [800, 448]  # 设置视频图像的大小
 crop_size: [10,10] #设置亮点框的大小
 
 save: false #是否保存每一帧识别结果
 save_csv: false #是否以csv格式保存一帧识别结果
-video_output_path: 'C:/Users/10561/datasets/xian/videos' #保存路径
+video_output_path: 'F:/xian/videos' #保存路径
 
 #日志保存配置
 save_img: true  #日志是否保存图片
@@ -25,7 +25,11 @@ HISTORY_LEN: 6 # 内部参数
 PLC_yaml: 'PLC_add.yaml'  #PLC配置文件路径
 
 
-median_blur_ksize: 11
+point_max_size: 20
+
+medianBlur_ksize: 11
 threshold_thresh: 5
 kernel_ksize: [30, 40]
 kernel_ksize2: [40, 100]
+
+

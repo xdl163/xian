@@ -1,12 +1,12 @@
-[BUG]: no found input "onefile"
+[BUG]: out of license
 
 ## Command Line
-C:\Users\Lenovo\.conda\envs\xian\Scripts\pyarmor gen --enable-bcc onefile main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/
+C:\Users\10561\.conda\envs\xian\Scripts\pyarmor gen --enable-bcc --pack onefile main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/
 
 ## Environments
 Python 3.12.11
-Pyarmor 9.1.7 (pro), 007552, breakyarn
+Pyarmor 9.1.8 (trial), 000000, non-profits
 Platform windows.x86_64
 Native windows.amd64
-Home C:\Users\Lenovo\.pyarmor
+Home C:\Users\10561\.pyarmor
 

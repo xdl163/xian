@@ -54,6 +54,12 @@ def load_config(config_path):
         BUF_SIZE=config['BUF_SIZE'],
         HISTORY_LEN=config['HISTORY_LEN'],
         plc_conf_path=config['PLC_yaml'],
+        medianBlur_ksize=config['medianBlur_ksize'],
+        threshold_thresh=config['threshold_thresh'],
+        kernel_ksize=config['kernel_ksize'],
+        kernel_ksize2=config['kernel_ksize2'],
+        point_max_size=config['point_max_size']
+
     )
 
 def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
@@ -67,6 +73,11 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
                    BUF_SIZE=3,
                    HISTORY_LEN=6,
                    plc_conf_path=None,
+                    medianBlur_ksize=11,
+                    threshold_thresh=5,
+                    kernel_ksize=(10, 14),
+                    kernel_ksize2=(24, 100),
+                    point_max_size=20
                    ):
 
     settings.IMAGE_SIZE = IMAGE_SIZE
@@ -82,6 +93,12 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     settings.save_img = save_img
     settings.save_img_path = save_img_path
     settings.db_save_day=db_save_day
+
+
+    settings.medianBlur_ksize=medianBlur_ksize
+    settings.threshold_thresh=threshold_thresh
+    settings.kernel_ksize=kernel_ksize
+    settings.kernel_ksize2=kernel_ksize2
 
     settings.save=save
     settings.save_csv=save_csv
