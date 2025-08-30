@@ -74,7 +74,7 @@ class VideoAnnotationDialog(QDialog):
         self.canceled = False
         self.auto_increment = False  # 是否启用自动编号
         self.auto_id_counter = 1  # 自动编号计数器
-        self.cropped_images = {}  # 存储点击点周围的图像（用于放大或分析）
+        # self.cropped_images = {}  # 存储点击点周围的图像（用于放大或分析）
 
         # HSV颜色筛选默认值
         self.hsv_range = {
@@ -118,15 +118,18 @@ class VideoAnnotationDialog(QDialog):
             self.hsv_inputs[key] = e
             hsv_layout.addWidget(l, 0 if i < 3 else 1, i % 3 * 2)
             hsv_layout.addWidget(e, 0 if i < 3 else 1, i % 3 * 2 + 1)
+        for key, edit in self.hsv_inputs.items():
+            edit.editingFinished.connect(self.on_hsv_input_change)
+        self.hsv_checkbox = QCheckBox("HSV阈值显示")
+        self.hsv_checkbox.stateChanged.connect(self.toggle_hsv_display)
+        # # HSV 筛选预览
+        # self.filtered_preview = QLabel("HSV筛选预览（前三个）")
+        # self.filtered_preview.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        # self.filtered_preview.setFixedSize(200, 320)
 
-        # HSV 筛选预览
-        self.filtered_preview = QLabel("HSV筛选预览（前三个）")
-        self.filtered_preview.setAlignment(Qt.AlignTop | Qt.AlignLeft)
-        self.filtered_preview.setFixedSize(200, 320)
-
-        # 全图预览按钮
-        self.full_preview_button = QPushButton("预览全部")
-        self.full_preview_button.clicked.connect(self.show_full_preview_dialog)
+        # # 全图预览按钮
+        # self.full_preview_button = QPushButton("预览全部")
+        # self.full_preview_button.clicked.connect(self.show_full_preview_dialog)
 
         self.last_event = None  # 上次鼠标事件
 
@@ -215,8 +218,10 @@ class VideoAnnotationDialog(QDialog):
         right_layout.addWidget(self.url_type_input)
         right_layout.addWidget(self.auto_increment_checkbox)
         right_layout.addLayout(hsv_layout)
-        right_layout.addWidget(self.filtered_preview)
-        right_layout.addWidget(self.full_preview_button)
+        right_layout.addWidget(self.hsv_checkbox)
+
+        # right_layout.addWidget(self.filtered_preview)
+        # right_layout.addWidget(self.full_preview_button)
         right_layout.addWidget(self.undo_button)
         right_layout.addWidget(self.clear_button)
         right_layout.addWidget(self.confirm_button)
@@ -239,8 +244,17 @@ class VideoAnnotationDialog(QDialog):
         self.update_description()
         self.update_frame()
 
+    def on_hsv_input_change(self):
+        for k, edit in self.hsv_inputs.items():
+            try:
+                self.hsv_range[k] = int(edit.text())
+            except ValueError:
+                return
+        if self.hsv_checkbox.isChecked():
+            self.update_frame()
 
-
+    def toggle_hsv_display(self, state):
+        self.update_frame()
 
     def resizeEvent(self, event):
         """窗口大小变化时自动调整控件尺寸/字体。"""
@@ -354,17 +368,25 @@ class VideoAnnotationDialog(QDialog):
         if self.frame_index>=len(self.frames):
             return
         frame=self.frames[self.frame_index]
-        self.video_frame = frame.copy()
+        if self.hsv_checkbox.isChecked():
+            hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+            lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
+            upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
+            mask = cv2.inRange(hsv, lower, upper)
+            mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+            self.video_frame = mask_bgr.copy()
+            self.display_frame = cv2.resize(mask_bgr, (1280, 720))
+        else:
+            self.display_frame = cv2.resize(frame, (1280, 720))
+            self.video_frame = frame.copy()
 
-        resized_frame = cv2.resize(frame, (1280, 720))
         self.scale_x = frame.shape[1] / 1280
         self.scale_y = frame.shape[0] / 720
-        self.display_frame = resized_frame
         # 根据标注类型进行绘制
         if self.annotation_type == "yarn":
-            for label, (real_x, real_y) in self.annotation_data.items():
-                crop = frame[max(0, real_y - self.half_h):real_y + self.half_h, max(0, real_x - self.half_w):real_x + self.half_w]
-                self.cropped_images[label] = crop
+            # for label, (real_x, real_y) in self.annotation_data.items():
+            #     crop = frame[max(0, real_y - self.half_h):real_y + self.half_h, max(0, real_x - self.half_w):real_x + self.half_w]
+            #     self.cropped_images[label] = crop
             for label, point in self.annotation_data.items():
                 x, y = int(point[0] / self.scale_x), int(point[1] / self.scale_y)
                 top_left = (x - self.half_w, y - self.half_h)
@@ -473,45 +495,45 @@ class VideoAnnotationDialog(QDialog):
                 label = text.strip()
                 self.auto_id_counter=int(label)+1
             self.annotation_data[label] = (real_x, real_y)
-            crop = self.video_frame[max(0, real_y - self.half_h):real_y + self.half_h, max(0, real_x - self.half_w):real_x + self.half_w]
-            self.cropped_images[label] = crop
+            # crop = self.video_frame[max(0, real_y - self.half_h):real_y + self.half_h, max(0, real_x - self.half_w):real_x + self.half_w]
+            # self.cropped_images[label] = crop
             # 裁剪图像并进行 HSV 筛选
-            self.update_hsv_preview()
+            # self.update_hsv_preview()
 
 
         else:
             self.annotation_data = [(real_x, real_y)]
         self.update_frame()
 
-    def update_hsv_preview(self):
-        if not self.cropped_images:
-            return
-
-        try:
-            for k in self.hsv_inputs:
-                self.hsv_range[k] = int(self.hsv_inputs[k].text())
-        except:
-            return
-        previews = []
-        for crop in list(self.cropped_images.values())[:4]:
-            hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-            lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
-            upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
-            mask = cv2.inRange(hsv, lower, upper)
-            preview = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-            preview = cv2.resize(preview, (100, 100))
-            previews.append(preview)
-
-        if previews:
-            rows = (len(previews) + 1) // 2
-            result = np.ones((rows * 100, 2 * 100, 3), dtype=np.uint8) * 255
-            for idx, p in enumerate(previews):
-                row, col = divmod(idx, 2)
-                result[row * 100:(row + 1) * 100, col * 100:(col + 1) * 100] = p
-
-            image = QImage(result.data, result.shape[1], result.shape[0],
-                                 result.strides[0], QImage.Format_BGR888)
-            self.filtered_preview.setPixmap(QPixmap.fromImage(image))
+    # def update_hsv_preview(self):
+    #     if not self.cropped_images:
+    #         return
+    #
+    #     try:
+    #         for k in self.hsv_inputs:
+    #             self.hsv_range[k] = int(self.hsv_inputs[k].text())
+    #     except:
+    #         return
+    #     previews = []
+    #     for crop in list(self.cropped_images.values())[:4]:
+    #         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    #         lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
+    #         upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
+    #         mask = cv2.inRange(hsv, lower, upper)
+    #         preview = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    #         preview = cv2.resize(preview, (100, 100))
+    #         previews.append(preview)
+    #
+    #     if previews:
+    #         rows = (len(previews) + 1) // 2
+    #         result = np.ones((rows * 100, 2 * 100, 3), dtype=np.uint8) * 255
+    #         for idx, p in enumerate(previews):
+    #             row, col = divmod(idx, 2)
+    #             result[row * 100:(row + 1) * 100, col * 100:(col + 1) * 100] = p
+    #
+    #         image = QImage(result.data, result.shape[1], result.shape[0],
+    #                              result.strides[0], QImage.Format_BGR888)
+    #         self.filtered_preview.setPixmap(QPixmap.fromImage(image))
 
     def undo_last_point(self):
         if self.annotation_type == "yarn" and self.annotation_data:
@@ -598,55 +620,55 @@ class VideoAnnotationDialog(QDialog):
         self.capture_thread.stop()
         self.capture_thread.wait()
 
-    def show_full_preview_dialog(self):
-        if not self.cropped_images:
-            return
-
-        try:
-            for k in self.hsv_inputs:
-                self.hsv_range[k] = int(self.hsv_inputs[k].text())
-        except:
-            return
-
-        previews = []
-        for crop in self.cropped_images.values():
-            hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-            lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
-            upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
-            mask = cv2.inRange(hsv, lower, upper)
-            preview = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-            preview = cv2.resize(preview, (100, 100))
-            previews.append(preview)
-
-        if not previews:
-            return
-
-        columns = 4
-        rows = (len(previews) + columns - 1) // columns
-        result = np.ones((rows * 100, columns * 100, 3), dtype=np.uint8) * 255
-        for idx, p in enumerate(previews):
-            row, col = divmod(idx, columns)
-            result[row * 100:(row + 1) * 100, col * 100:(col + 1) * 100] = p
-
-        image = QImage(result.data, result.shape[1], result.shape[0],
-                             result.strides[0], QImage.Format_BGR888)
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("全部二值图预览")
-        scroll = QScrollArea()
-        label = QLabel()
-        label.setPixmap(QPixmap.fromImage(image))
-        scroll.setWidget(label)
-        scroll.setWidgetResizable(True)
-
-        layout = QVBoxLayout(dialog)
-        layout.addWidget(scroll)
-
-        # 设置窗口大小，最多不超过 600x600，内容小则自适应
-        width = min(result.shape[1] + 20, 600)
-        height = min(result.shape[0] + 20, 600)
-        dialog.resize(width, height)
-        dialog.exec_()
+    # def show_full_preview_dialog(self):
+    #     if not self.cropped_images:
+    #         return
+    #
+    #     try:
+    #         for k in self.hsv_inputs:
+    #             self.hsv_range[k] = int(self.hsv_inputs[k].text())
+    #     except:
+    #         return
+    #
+    #     previews = []
+    #     for crop in self.cropped_images.values():
+    #         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    #         lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
+    #         upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
+    #         mask = cv2.inRange(hsv, lower, upper)
+    #         preview = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+    #         preview = cv2.resize(preview, (100, 100))
+    #         previews.append(preview)
+    #
+    #     if not previews:
+    #         return
+    #
+    #     columns = 4
+    #     rows = (len(previews) + columns - 1) // columns
+    #     result = np.ones((rows * 100, columns * 100, 3), dtype=np.uint8) * 255
+    #     for idx, p in enumerate(previews):
+    #         row, col = divmod(idx, columns)
+    #         result[row * 100:(row + 1) * 100, col * 100:(col + 1) * 100] = p
+    #
+    #     image = QImage(result.data, result.shape[1], result.shape[0],
+    #                          result.strides[0], QImage.Format_BGR888)
+    #
+    #     dialog = QDialog(self)
+    #     dialog.setWindowTitle("全部二值图预览")
+    #     scroll = QScrollArea()
+    #     label = QLabel()
+    #     label.setPixmap(QPixmap.fromImage(image))
+    #     scroll.setWidget(label)
+    #     scroll.setWidgetResizable(True)
+    #
+    #     layout = QVBoxLayout(dialog)
+    #     layout.addWidget(scroll)
+    #
+    #     # 设置窗口大小，最多不超过 600x600，内容小则自适应
+    #     width = min(result.shape[1] + 20, 600)
+    #     height = min(result.shape[0] + 20, 600)
+    #     dialog.resize(width, height)
+    #     dialog.exec_()
 
 
     def cancel_and_close(self):
@@ -697,7 +719,7 @@ class VideoAnnotationDialog(QDialog):
             self.annotation_data = {} if self.annotation_type == "yarn" else []
 
         if self.annotation_type == "yarn":
-            self.update_hsv_preview()
+            # self.update_hsv_preview()
             keys = list(self.annotation_data.keys())
             numeric_keys = [int(k) for k in keys if k.isdigit()]
             if numeric_keys:

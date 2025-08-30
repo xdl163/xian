@@ -4,10 +4,12 @@ from PyQt5.QtGui import QPixmap, QGuiApplication, QFont
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QTableWidget, \
     QTableWidgetItem, QSizePolicy, QHeaderView, QAbstractButton
 
-
+import hashlib
 from Page import run_annotation_sequence
 
+from PyQt5.QtWidgets import  QInputDialog, QMessageBox,QLineEdit
 
+from activate import save_license_file
 import settings
 from Utils import cv2_to_qimage, load_config
 from detect_xian import VideoProcessorThread
@@ -50,6 +52,10 @@ class VideoApp(QWidget):
         self.reload_button.clicked.connect(reload2)
         btn_row.addWidget(self.reload_button)
 
+        self.change_passwd_button = QPushButton("修改密码")
+        self.change_passwd_button.clicked.connect(self.on_change_password)
+        btn_row.addWidget(self.change_passwd_button)
+
         right_layout.addLayout(btn_row)
 
         # 视频表格
@@ -68,7 +74,9 @@ class VideoApp(QWidget):
             self.table.setCellWidget(i, 1, btn_preview)
 
             btn_annot = QPushButton("标注")
-            btn_annot.clicked.connect(lambda _, v=video: self.run_annotation_sequence(v))
+            btn_annot.clicked.connect(lambda _, v=video: self.on_annot_clicked(v))
+
+            # btn_annot.clicked.connect(lambda _, v=video: self.run_annotation_sequence(v))
             self.table.setCellWidget(i, 2, btn_annot)
 
         right_layout.addWidget(self.table)
@@ -79,6 +87,47 @@ class VideoApp(QWidget):
         # ---------- 窗口基本属性 ----------
         self.setWindowTitle('断线检测')
         self.resize(QGuiApplication.primaryScreen().availableGeometry().size() * 0.8)
+
+    def on_change_password(self):
+        # 1️⃣ 输入原密码
+        old_passwd, ok = QInputDialog.getText(self, "原密码验证", "请输入原密码：", QLineEdit.Password)
+        if not ok:
+            return
+        if hashlib.sha256(old_passwd.encode('utf-8')).hexdigest() != settings.passwd:
+            QMessageBox.warning(self, "错误", "原密码错误！")
+            return
+
+        # 2️⃣ 输入新密码
+        new_passwd1, ok1 = QInputDialog.getText(self, "设置新密码", "请输入新密码：", QLineEdit.Password)
+        if not ok1:
+            return
+        new_passwd2, ok2 = QInputDialog.getText(self, "确认新密码", "请再次输入新密码：", QLineEdit.Password)
+        if not ok2:
+            return
+
+        if new_passwd1 != new_passwd2:
+            QMessageBox.warning(self, "错误", "两次输入的密码不一致！")
+            return
+
+        # 3️⃣ 保存新密码（SHA-256 加密）
+        settings.passwd = hashlib.sha256(new_passwd1.encode('utf-8')).hexdigest()
+        license_data=settings.license_data
+        license_data['passwd'] = settings.passwd
+        settings.license_data = license_data
+        save_license_file(settings.license_data)
+        QMessageBox.information(self, "成功", "密码已修改成功！")
+
+    def on_annot_clicked(self,video):
+        # 弹出密码输入框
+        password, ok = QInputDialog.getText(None, "密码验证", "请输入密码：", QLineEdit.Password)
+        if ok:  # 用户点击了确认
+            if hashlib.sha256(password.encode('utf-8')).hexdigest() == settings.passwd:
+                # 密码正确，执行原函数
+                self.run_annotation_sequence(video)
+            else:
+                # 密码错误，提示
+                QMessageBox.warning(None, "错误", "密码错误！")
+
     def run_annotation_sequence(self, video):
         settings.label_video_id=video.id
         run_annotation_sequence(video)

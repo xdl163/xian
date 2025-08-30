@@ -63,7 +63,4 @@ pyinstaller --onefile  src/main.py
 pyarmor gen --enable-rft main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
 pyarmor gen --enable-bcc --pack onefile  main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
 
-
-pyarmor gen pack -e " --onefile "  --name main --enable-bcc  main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/
-
 '''

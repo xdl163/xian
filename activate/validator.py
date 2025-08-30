@@ -3,32 +3,36 @@ from datetime import datetime
 from .license_handler import load_license_file
 from .machine_id import get_machine_id
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-
+import settings
 
 class AuthorizationValidator:
+    def __init__(self):
+        self.license_data = load_license_file()
+        settings.license_data=self.license_data
+        settings.passwd = self.license_data['passwd']
+
     def validate(self):
         """
         主函数：验证授权许可是否合法，返回解密后的授权信息。
         如果验证失败，会抛出异常。
         """
         #print("[验证器] 加载授权文件...")
-        license_data = load_license_file()
         #print("[验证器] 授权文件加载成功，内容如下：")
         #print(license_data)
 
         #print("[验证器] 检查签名...")
-        self._check_signature(license_data)
+        self._check_signature(self.license_data)
         #print("[验证器] 签名校验通过")
 
         #print("[验证器] 校验设备绑定和应用名称...")
-        self._check_binding(license_data)
+        self._check_binding(self.license_data)
         #print("[验证器] 设备和应用校验通过")
 
         #print("[验证器] 检查授权是否过期...")
-        self._check_expiry(license_data)
+        self._check_expiry(self.license_data)
         #print("[验证器] 授权仍在有效期内")
 
-        return license_data
+        return self.license_data
 
     def _check_signature(self, data: dict):
         """

@@ -1,3 +1,4 @@
+import hashlib
 
 dir_path=None
 IMAGE_SIZE=(1280,720)
@@ -33,4 +34,6 @@ window=None
 
 config_path=None
 
+passwd=hashlib.sha256("123457".encode('utf-8')).hexdigest()
 
+license_data=None
