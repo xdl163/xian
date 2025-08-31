@@ -7,7 +7,7 @@ import time
 from PyQt5.QtGui import QIntValidator,QFont,QImage,QPixmap
 from PyQt5.QtWidgets import QLabel, QApplication, QTableWidget, QTableWidgetItem, QPushButton, QWidget, QVBoxLayout, \
     QFileDialog, QDialog, QDialogButtonBox, QHBoxLayout, QLineEdit, QHeaderView, QAbstractButton, QSlider, QGridLayout, \
-    QScrollArea, QComboBox, QCheckBox, QInputDialog
+    QScrollArea, QComboBox, QCheckBox, QInputDialog, QFrame, QSpinBox, QSizePolicy
 from PyQt5.QtCore import QThread, pyqtSignal,Qt
 import settings
 from datatypes import Video
@@ -620,55 +620,6 @@ class VideoAnnotationDialog(QDialog):
         self.capture_thread.stop()
         self.capture_thread.wait()
 
-    # def show_full_preview_dialog(self):
-    #     if not self.cropped_images:
-    #         return
-    #
-    #     try:
-    #         for k in self.hsv_inputs:
-    #             self.hsv_range[k] = int(self.hsv_inputs[k].text())
-    #     except:
-    #         return
-    #
-    #     previews = []
-    #     for crop in self.cropped_images.values():
-    #         hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
-    #         lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
-    #         upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
-    #         mask = cv2.inRange(hsv, lower, upper)
-    #         preview = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-    #         preview = cv2.resize(preview, (100, 100))
-    #         previews.append(preview)
-    #
-    #     if not previews:
-    #         return
-    #
-    #     columns = 4
-    #     rows = (len(previews) + columns - 1) // columns
-    #     result = np.ones((rows * 100, columns * 100, 3), dtype=np.uint8) * 255
-    #     for idx, p in enumerate(previews):
-    #         row, col = divmod(idx, columns)
-    #         result[row * 100:(row + 1) * 100, col * 100:(col + 1) * 100] = p
-    #
-    #     image = QImage(result.data, result.shape[1], result.shape[0],
-    #                          result.strides[0], QImage.Format_BGR888)
-    #
-    #     dialog = QDialog(self)
-    #     dialog.setWindowTitle("全部二值图预览")
-    #     scroll = QScrollArea()
-    #     label = QLabel()
-    #     label.setPixmap(QPixmap.fromImage(image))
-    #     scroll.setWidget(label)
-    #     scroll.setWidgetResizable(True)
-    #
-    #     layout = QVBoxLayout(dialog)
-    #     layout.addWidget(scroll)
-    #
-    #     # 设置窗口大小，最多不超过 600x600，内容小则自适应
-    #     width = min(result.shape[1] + 20, 600)
-    #     height = min(result.shape[0] + 20, 600)
-    #     dialog.resize(width, height)
-    #     dialog.exec_()
 
 
     def cancel_and_close(self):
@@ -750,6 +701,481 @@ class ClickableLabel(QLabel):
         # 不要忘记调用父类事件，以免其他事件处理被阻断
         super().mousePressEvent(event)
 
+
+class VideoLabel(QLabel):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.main_win = None  # 引用主窗口，用于事件回调
+        self.setMouseTracking(True)          # ←★ 必须打开鼠标追踪
+
+    def mousePressEvent(self, event):
+        # 单击事件传递给主窗口处理
+        if self.main_win:
+            self.main_win.imageClicked(event)
+
+    def mouseMoveEvent(self, event):
+        # 鼠标移动事件用于更新放大镜显示
+        if self.main_win:
+            self.main_win.updateMagnifier(event)
+
+
+class MoveLabelWindow(QDialog):
+    def __init__(self, video:Video, yaml_path="annotations.yaml"):
+        super().__init__()
+        self.setWindowTitle("视频标注工具")
+        # 初始化成员变量
+        self.yaml_path = yaml_path
+        self.contours_list = []   # 已记录的轮廓信息列表
+        self.contour_count = 0    # 用于生成唯一轮廓ID
+        self.current_frame = None
+        self.original_frame = None  # 冻结帧的原始图像
+        self.base_frame = None      # 带标注的图像
+        self.was_running = False    # 点击时视频是否在播放
+
+        main_layout = QHBoxLayout(self)  # ← 将布局直接加到 self 上
+
+        # 左侧：视频显示区域
+        self.video_label = VideoLabel()
+        self.video_label.setAlignment(Qt.AlignCenter)
+        self.video_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # 将主窗口引用传给VideoLabel，以便其事件方法调用主窗口对应处理
+        self.video_label.main_win = self
+        self.video_label.setMouseTracking(True)     # ←★ 双保险，写一行也无妨
+
+
+        # 进度条
+        self.progress_slider = QSlider(Qt.Horizontal)
+        self.progress_slider.setRange(0, 0)
+        self.progress_slider.sliderMoved.connect(self.slider_moved)
+
+        left_layout = QVBoxLayout()
+        left_layout.addWidget(self.video_label)      # 上：视频
+        left_layout.addWidget(self.progress_slider)  # 下：进度条
+        left_widget = QWidget()
+        left_widget.setLayout(left_layout)
+
+        main_layout.addWidget(left_widget)
+
+        # 右侧：控制功能区
+        right_widget = QWidget()
+        right_layout = QVBoxLayout(right_widget)
+        # 放大镜显示标签
+        self.magnifier_label = QLabel("Magnifier")
+        self.magnifier_label.setFixedSize(160, 160)
+        self.magnifier_label.setFrameShape(QFrame.Box)
+        self.magnifier_label.setLineWidth(1)
+        self.magnifier_label.setStyleSheet("background-color: black;")
+        right_layout.addWidget(self.magnifier_label, alignment=Qt.AlignCenter)
+        # Canny阈值输入
+        min_layout = QHBoxLayout()
+        min_label = QLabel("Canny minVal:")
+        self.min_spin = QSpinBox()
+        self.min_spin.setRange(0, 255)
+        self.min_spin.setValue(150)
+        min_layout.addWidget(min_label)
+        min_layout.addWidget(self.min_spin)
+        right_layout.addLayout(min_layout)
+        max_layout = QHBoxLayout()
+        max_label = QLabel("Canny maxVal:")
+        self.max_spin = QSpinBox()
+        self.max_spin.setRange(0, 1000)
+        self.max_spin.setValue(250)
+        max_layout.addWidget(max_label)
+        max_layout.addWidget(self.max_spin)
+        right_layout.addLayout(max_layout)
+        # 预览按钮
+        self.preview_button = QPushButton("预览")
+        self.preview_button.clicked.connect(self.previewContours)
+        right_layout.addWidget(self.preview_button)
+        # 表格显示已记录的轮廓列表
+        self.table = QTableWidget(0, 2)
+        self.table.setHorizontalHeaderLabels(["Contour ID", "操作"])
+        # 列宽策略：第一列填充，第二列根据内容调整
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        right_layout.addWidget(self.table)
+        # 保存和取消按钮
+        btn_layout = QHBoxLayout()
+        self.save_button = QPushButton("保存")
+        self.save_button.clicked.connect(self.saveContours)
+        self.cancel_button = QPushButton("取消")
+        self.cancel_button.clicked.connect(self.cancelAnnotation)
+        # ① 创建按钮
+        self.close_button = QPushButton("关闭")
+        self.close_button.clicked.connect(self.close)   # 直接调用 QMainWindow.close()
+        btn_layout.addWidget(self.save_button)
+        btn_layout.addWidget(self.cancel_button)
+        btn_layout.addWidget(self.close_button)
+        right_layout.addLayout(btn_layout)
+
+        main_layout.addWidget(right_widget)
+        # ============ 帧缓存 & 采集线程 ============
+        self.frames = []                 # 收到的原始帧缓存
+        self.frame_index = 0             # 当前在第几帧
+        self.capture_thread = FrameCaptureThread(video)
+        self.capture_thread.frame_captured.connect(self.handle_new_frame)
+        self.capture_thread.start()
+
+        # ==== 读取已有 YAML（只解析，不画）====
+        self.contours_list.clear()
+
+        if os.path.exists(self.yaml_path):
+            try:
+                with open(self.yaml_path, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f) or {}
+                # === 还原 Canny 阈值（若 YAML 中已保存） ===
+                self.min_spin.setValue(int(data.get("canny_min", 150)))
+                self.max_spin.setValue(int(data.get("canny_max", 250)))
+                ann = data.get('click_annotations', {})
+                for cid, info in ann.items():
+                    click_xy  = info.get('click_xy',  [0.0, 0.0])
+                    center_xy = info.get('center_xy', [0.0, 0.0])
+                    size_wh   = info.get('size',      [0.0, 0.0])
+
+                    self.contours_list.append({
+                        'id'         : cid,
+                        'click_point': tuple(click_xy),
+                        'center'     : tuple(center_xy),
+                        'size'       : tuple(size_wh),
+                        'contour'    : None
+                    })
+
+                    # -------★ 解析现有 ID 序号，更新计数器 -------------
+                    if cid.startswith("contour_"):
+                        try:
+                            num = int(cid.split("_")[1])
+                            self.contour_count = max(self.contour_count, num)
+                        except ValueError:
+                            pass  # 非数字后缀，忽略
+                    # -------------------------------------------------
+                self.updateTable()         # ← 立刻刷新表格
+            except Exception as e:
+                print("读取 YAML 出错:", e)
+
+    # ----------------------------------------
+    # ❷ 采集线程送来一帧 → 加到列表并更新进度条
+    # ----------------------------------------
+    def handle_new_frame(self, frame):
+        """采集线程把新帧送进来"""
+        self.current_frame = frame
+        self.frames.append(frame)
+        # 第一次收到帧：立即显示 & 初始化进度条范围
+        if len(self.frames) == 1:
+            self.progress_slider.setRange(0, 0)
+            self.update_frame()          # 把第0帧推到画面
+        # 保留最近 300 帧即可（按2 s采集大约10 min）
+        if len(self.frames) > 300:
+            self.frames.pop(0)
+            # 若 frame_index 被挤掉，回退到最新
+            self.frame_index = max(0, len(self.frames) - 1)
+        # 实时更新进度条最大值
+        self.progress_slider.setRange(0, len(self.frames) - 1)
+        # 如果当前停在最新帧（==max），就自动刷新画面
+        if self.frame_index == len(self.frames) - 1:
+            self.update_frame()
+
+    def displayFrame(self, frame_bgr):
+        """将给定的BGR图像显示到video_label上"""
+        if frame_bgr is None or frame_bgr.size == 0:
+            return
+        show = cv2.resize(frame_bgr, (1280, 720))   # ←★ 新增
+        rgb  = cv2.cvtColor(show, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb.shape
+        qimg = QImage(rgb.data, w, h, ch*w, QImage.Format_RGB888)
+        pixmap = QPixmap.fromImage(qimg)
+        # 直接设置pixmap（假设label大小与图像尺寸接近，可按需缩放）
+        self.video_label.setPixmap(pixmap)
+
+
+    # ----------------------------------------
+    # ❸ 进度条拖动：只改索引，不重新采集
+    # ----------------------------------------
+    def slider_moved(self, idx):
+        self.frame_index = idx
+        self.update_frame()
+
+
+    # ----------------------------------------
+    # ❹ update_frame：把 self.frames[self.frame_index] 画到 QLabel，
+    #    并在其上叠加所有已记录的轮廓
+    # ----------------------------------------
+    def update_frame(self):
+        if not self.frames:
+            return
+        frame = self.frames[self.frame_index]
+        show  = frame.copy()
+
+        img_h, img_w = frame.shape[:2]              # ← 用来反归一化
+
+        for d in self.contours_list:
+            if d['contour'] is not None:
+                # 真 contour（运行期点击后才会有）
+                cv2.drawContours(show, [d['contour']], -1, (0,0,255), 2)
+                x, y, w, h = cv2.boundingRect(d['contour'])
+            else:
+                # 只有 center / size（全部是 0-1）
+                cx_norm, cy_norm = d['center']
+                w_norm,  h_norm  = d['size']
+
+                cx = int(cx_norm * img_w)
+                cy = int(cy_norm * img_h)
+                w  = int(w_norm  * img_w)
+                h  = int(h_norm  * img_h)
+
+                x = cx - w // 2
+                y = cy - h // 2
+                cv2.rectangle(show, (x, y), (x + w, y + h), (0, 0, 255), 2)
+
+            cv2.putText(show, d['id'], (x, max(0, y-5)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,0,255), 1)
+        # 缩放到固定显示区 sizeDisplay = (1280,720) 之类
+        self.display_frame = cv2.resize(show,(1280,720))
+        # 记录比例给放大镜/点击用
+        self.scale_x = frame.shape[1] / 1280
+        self.scale_y = frame.shape[0] / 720
+        # 真正显示
+        qimg = QImage(self.display_frame.data,
+                            self.display_frame.shape[1],
+                            self.display_frame.shape[0],
+                            self.display_frame.strides[0],
+                            QImage.Format_BGR888)
+        self.video_label.setPixmap(QPixmap.fromImage(qimg))
+
+
+    def imageClicked(self, event):
+        """处理视频区域的鼠标点击事件"""
+        # ===== 1. 基本有效性检查 ==========================================
+        if not self.frames:                 # 还没有收到任何帧
+            return
+
+        # 取当前帧索引对应的原始帧 -------------------------------  ### FIX: 始终补 current_frame
+        self.current_frame  = self.frames[self.frame_index]
+        self.original_frame = self.frames[self.frame_index].copy()
+
+        # self.base_frame 为空的情况：第一次点击或被误清空 ---------  ### FIX
+        if self.base_frame is None:
+            self.base_frame = self.current_frame.copy()
+
+        # ===== 2. 把点击坐标从 QLabel 空间映射到图像坐标 =============
+        lx = event.x();  ly = event.y()
+
+        img_h, img_w = self.current_frame.shape[:2]
+        label_w, label_h = self.video_label.width(), self.video_label.height()
+        if label_w == 0 or label_h == 0:    # QLabel 还没成型
+            return
+
+        scale_x, scale_y = img_w / label_w, img_h / label_h
+        img_x, img_y = int(lx * scale_x), int(ly * scale_y)
+        img_x = max(0, min(img_x, img_w - 1))
+        img_y = max(0, min(img_y, img_h - 1))
+
+        # ===== 3. 灰度 → 模糊 → Canny → 轮廓 =======================
+        img_proc = self.current_frame        # 已经是 copy 的，不再额外 copy
+
+        gray = cv2.cvtColor(img_proc, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5, 5), 0)
+        min_val, max_val = self.min_spin.value(), self.max_spin.value()
+        edges = cv2.Canny(gray, min_val, max_val)
+
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            print("未找到任何轮廓")
+            return
+
+        # ===== 4. 找到包含点击点的轮廓 =============================
+        target_contour = None
+        for c in contours:
+            if cv2.pointPolygonTest(c, (img_x, img_y), False) >= 0:
+                target_contour = c
+                break
+        if target_contour is None:
+            print("点击位置不在任何轮廓内")
+            return
+
+        # ===== 5. 记录轮廓信息 & 叠加到 base_frame =================
+        x, y, w, h = cv2.boundingRect(target_contour)
+        cx, cy     = x + w // 2, y + h // 2
+
+        self.contour_count += 1
+        contour_id = f"contour_{self.contour_count}"
+        self.contours_list.append({
+            'id':         contour_id,
+            'click_point': (img_x, img_y),
+            'center':     (cx, cy),
+            'size':       (w, h),
+            'contour':    target_contour
+        })
+
+        # ===== 6. 刷新界面 & 表格 ==================================
+        self.displayFrame(self.base_frame)   # displayFrame 已加空值防御
+        self.updateTable()
+        self.update_frame()
+
+    def updateMagnifier(self, event):
+        """更新放大镜显示（显示鼠标附近的图像局部放大，并在中心画十字）"""
+        if self.current_frame is None:
+            return
+
+        # === 1. 计算 ROI ===
+        lx, ly = event.x(), event.y()
+        img_h, img_w = self.current_frame.shape[:2]
+        label_w, label_h = self.video_label.width(), self.video_label.height()
+        if label_w == 0 or label_h == 0:
+            return
+
+        scale_x, scale_y = img_w / label_w, img_h / label_h
+        img_x, img_y = int(lx * scale_x), int(ly * scale_y)
+
+        region = 20                           # ROI 半径（像素）
+        x0, y0 = max(0, img_x - region), max(0, img_y - region)
+        x1, y1 = min(img_w, img_x + region), min(img_h, img_y + region)
+        roi = self.current_frame[y0:y1, x0:x1]
+        if roi.size == 0:
+            return
+
+        # === 2. 放大 ROI ===
+        zoom_factor = 4
+        zh, zw = roi.shape[0] * zoom_factor, roi.shape[1] * zoom_factor
+        zoom_img = cv2.resize(roi, (zw, zh), interpolation=cv2.INTER_NEAREST)
+
+        # === 3. 在中心绘制十字 ====================================
+        cx, cy = zw // 2, zh // 2            # 放大后图像中心
+        cross_len = min(zw, zh) // 8         # 十字臂长，可自行调整
+        cv2.line(zoom_img, (cx - cross_len, cy), (cx + cross_len, cy), (0, 0, 255), 2)
+        cv2.line(zoom_img, (cx, cy - cross_len), (cx, cy + cross_len), (0, 0, 255), 2)
+        # ========================================================
+
+        # === 4. 转 QPixmap 显示 ===
+        rgb_zoom = cv2.cvtColor(zoom_img, cv2.COLOR_BGR2RGB)
+        h2, w2, ch2 = rgb_zoom.shape
+        qimg_zoom = QImage(rgb_zoom.data, w2, h2, ch2 * w2, QImage.Format_RGB888)
+        pixmap_zoom = QPixmap.fromImage(qimg_zoom)
+        pixmap_zoom = pixmap_zoom.scaled(self.magnifier_label.size(),
+                                         Qt.KeepAspectRatio,
+                                         Qt.FastTransformation)
+        self.magnifier_label.setPixmap(pixmap_zoom)
+
+
+    def previewContours(self):
+        """根据当前阈值执行边缘检测，并以弹窗显示所有轮廓"""
+        if self.current_frame is None:
+            return
+        # 使用当前原始帧进行边缘检测
+        img = self.original_frame.copy() if self.original_frame is not None else self.current_frame.copy()
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.GaussianBlur(gray, (5,5), 0)
+        min_val = self.min_spin.value()
+        max_val = self.max_spin.value()
+        edges = cv2.Canny(gray, min_val, max_val)
+        contours, _ = cv2.findContours(edges.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # 在副本图像上绘制所有轮廓
+        preview_img = img.copy()
+        cv2.drawContours(preview_img, contours, -1, (0,255,0), 1)
+        # 弹出窗口显示预览图像
+        preview_dialog = QDialog(self)
+        preview_dialog.setWindowTitle("边缘检测预览")
+        vbox = QVBoxLayout(preview_dialog)
+        label = QLabel()
+        rgb_prev = cv2.cvtColor(preview_img, cv2.COLOR_BGR2RGB)
+        h, w, ch = rgb_prev.shape
+        qimg_prev = QImage(rgb_prev.data, w, h, ch*w, QImage.Format_RGB888)
+        pixmap_prev = QPixmap.fromImage(qimg_prev)
+        label.setPixmap(pixmap_prev)
+        vbox.addWidget(label)
+        preview_dialog.exec_()
+
+    def updateTable(self):
+        """更新表格中的轮廓列表显示"""
+        self.table.setRowCount(len(self.contours_list))
+        for i, data in enumerate(self.contours_list):
+            cid = data['id']
+            # 第一列显示轮廓ID
+            item = QTableWidgetItem(cid)
+            item.setFlags(Qt.ItemIsSelectable | Qt.ItemIsEnabled)  # 设为不可编辑
+            self.table.setItem(i, 0, item)
+            # 第二列放置删除按钮
+            btn = QPushButton("删除")
+            btn.clicked.connect(lambda checked, contour_id=cid: self.removeContour(contour_id))
+            self.table.setCellWidget(i, 1, btn)
+        self.table.resizeRowsToContents()
+
+    def removeContour(self, contour_id):
+        """从记录中删除指定ID的轮廓标注"""
+        removed = None
+        for idx, data in enumerate(self.contours_list):
+            if data['id'] == contour_id:
+                removed = self.contours_list.pop(idx)
+                break
+        if removed is None:
+            return
+        # 更新表格显示
+        self.updateTable()
+        self.update_frame()
+
+
+
+    def saveContours(self):
+        """把 contours_list 全部以 0‒1 归一化格式写回 YAML"""
+        if self.current_frame is None:
+            print("当前没有可保存的帧")
+            return
+        img_h, img_w = self.current_frame.shape[:2]
+
+        # 1) 读取旧文件，保留其它字段
+        data = {}
+        if os.path.exists(self.yaml_path):
+            try:
+                with open(self.yaml_path, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception as e:
+                print("读取 YAML 出错:", e)
+
+        # 2) 整理归一化后的 annotations
+        annotations = {}
+        for entry in self.contours_list:
+            # --- 像素 → 归一化（已是 0‒1 的保持不变） ---
+            def norm(val, dim):
+                return val if val <= 1.0 else val / dim      # 容错：<=1 视为已归一化
+            click_xn = norm(entry['click_point'][0], img_w)
+            click_yn = norm(entry['click_point'][1], img_h)
+
+            cx_norm  = norm(entry['center'][0],    img_w)
+            cy_norm  = norm(entry['center'][1],    img_h)
+
+            w_norm   = norm(entry['size'][0],      img_w)
+            h_norm   = norm(entry['size'][1],      img_h)
+
+            annotations[entry['id']] = {
+                'click_xy' : [round(click_xn, 6), round(click_yn, 6)],
+                'center_xy': [round(cx_norm, 6),  round(cy_norm, 6)],
+                'size'     : [round(w_norm, 6),   round(h_norm, 6)]
+            }
+
+        data['click_annotations'] = annotations
+
+        # === 保存 Canny 阈值到 YAML 顶层 ===
+        data['canny_min'] = int(self.min_spin.value())
+        data['canny_max'] = int(self.max_spin.value())
+        # 3) 写回文件
+        try:
+            with open(self.yaml_path, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(data, f, allow_unicode=True)
+            print("标注已保存（坐标已归一化）→", self.yaml_path)
+        except Exception as e:
+            print("写入 YAML 出错:", e)
+
+
+    def cancelAnnotation(self):
+        """取消标注，退出或恢复视频播放"""
+        if self.was_running:
+            # 如果进入标注前视频在播放，则恢复播放
+            self.timer.start(30)
+            self.was_running = False
+        # 这里可以选择关闭窗口或仅退出标注模式
+        # 为简单起见，直接关闭程序
+        self.close()
+
 def run_annotation_sequence(video):
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
@@ -758,6 +1184,8 @@ def run_annotation_sequence(video):
         dialog.exec_()
         if dialog.canceled:
             return False  # 用户点击取消，提前退出
+    win = MoveLabelWindow(video, video.yaml_path)
+    win.exec_()  # 阻塞，直到用户关闭
     return True  # 全部完成
 
 
