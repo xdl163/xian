@@ -109,7 +109,6 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     if os.path.isdir(video_output_path):
         settings.video_output_path=os.path.join(video_output_path,f"{time.time()}")
     else:
-        print(video_output_path)
         with open(video_output_path, 'r', encoding='utf-8') as file:
             config = yaml.safe_load(file)
             output_paths=config['videos']
@@ -126,6 +125,8 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
             settings.video_list.append(video)
         else:
             print(f'{filename}加载失败')
+
+
 def modbus_load_yaml(cfg_path):
     from modbus import ModbusServer
     cfg_path = Path(cfg_path)

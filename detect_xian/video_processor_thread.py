@@ -4,7 +4,7 @@ import time
 import numpy as np
 import cv2
 
-from light_cls import img_cls as img_cls_onnx
+from light_cls import img_cls_pt as img_cls_onnx
 from datatypes import Video_error
 import settings
 from datatypes import Video
@@ -99,10 +99,10 @@ class VideoProcessorThread(threading.Thread):
                     kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
 
                     frame = video.next_frame()
-
                     if frame is None:           # 无帧
                         frame_null_num += 1
                         continue
+                    frame_clean=frame.copy()
 
 
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
@@ -232,7 +232,6 @@ class VideoProcessorThread(threading.Thread):
                     # 只在 valid==True 的点位上更新计数
                     # err += np.logical_and(fail_raw, valid)
                     err += np.logical_and.reduce((fail_raw, valid, (err <= settings.ERROR_WIN)))
-                    # cor += np.logical_and(ok_raw,   valid)
                     cor += np.logical_and.reduce((ok_raw, valid, (cor <= settings.CORRECT_WIN)))
 
                     # 确保错误和正确计数在互相冲突的情况下归零
@@ -250,7 +249,6 @@ class VideoProcessorThread(threading.Thread):
                         fail_raw[need_chk] = False
                     # 断线 / 恢复亮
                     broke_idx = np.where(np.logical_and((err == settings.ERROR_WIN),  lit))[0]
-                    # light_idx = np.where(np.logical_and((cor == settings.CORRECT_WIN), ~lit))[0]
                     light_idx = np.where(
                         np.logical_and.reduce((
                             cor == settings.CORRECT_WIN,

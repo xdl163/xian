@@ -1,6 +1,5 @@
 import atexit
 import time
-
 import numpy as np
 import pymysql
 import os
@@ -32,6 +31,7 @@ class XianDB:
             charset='utf8mb4',
             autocommit=True
         )
+
         # 保存图片到本地目录
         self.save_dir = save_img_path
         os.makedirs(self.save_dir, exist_ok=True)

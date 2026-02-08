@@ -287,21 +287,30 @@ class ModbusServer:
         return True
 
 
-    def update_video_xian(self,video_id,xian_light):
-        plc_adds=self.com_cfg[int(video_id)]
-        xian_status = ''.join([str(0 if light else 1) for light in xian_light])
-        # 拆分成前16位和后面部分
-        first_part = xian_status[:16]  # 前16位
-        second_part = xian_status[16:]  # 剩余部分
+    def update_video_xian(self, video_id, xian_light):
+        plc_adds = self.com_cfg[int(video_id)]
 
-        # 如果后面部分不足16位，右侧补0
-        second_part = second_part.ljust(16, '0')
-        second_part=second_part[::-1]
-        first_part=first_part[::-1]
+        # 如果没有任何线，直接写 0，避免 int('', 2) 报错
+        if len(xian_light) == 0:
+            self.write_register(plc_adds[0], 0)
+            self.write_register(plc_adds[1], 0)
+            return
+
+        xian_status = ''.join([str(0 if light else 1) for light in xian_light])
+
+        # 统一补齐到 32 位（不够右侧补 0，多了截断）
+        xian_status = xian_status.ljust(32, '0')[:32]
+
+        # 前 16 位、后 16 位，再各自反转
+        first_part = xian_status[:16][::-1]
+        second_part = xian_status[16:][::-1]
+
         xian_status1 = int(first_part, 2)
         xian_status2 = int(second_part, 2)
-        self.write_register(plc_adds[0],xian_status1)
-        self.write_register(plc_adds[1],xian_status2)
+
+        self.write_register(plc_adds[0], xian_status1)
+        self.write_register(plc_adds[1], xian_status2)
+
 
 
 

@@ -29,17 +29,17 @@ if __name__ == '__main__':
     config_path = "config.yaml"
     print(config_path)
     info_type=None
-    try:
-        validator = AuthorizationValidator()
-        info = validator.validate()  # 验证授权
-        info_type=info['type']
-        print(f"授权成功，类型: {info['type']}，到期时间: {info['expires']}")
-    except Exception as e:
-        print(f"授权失败: {e}")
-        # 触发激活流程
-        if not activate_if_needed():
-            print("激活失败，程序终止。")
-            sys.exit(1)
+    # try:
+    #     validator = AuthorizationValidator()
+    #     info = validator.validate()  # 验证授权
+    #     info_type=info['type']
+    #     print(f"授权成功，类型: {info['type']}，到期时间: {info['expires']}")
+    # except Exception as e:
+    #     print(f"授权失败: {e}")
+    #     # 触发激活流程
+    #     if not activate_if_needed():
+    #         print("激活失败，程序终止。")
+    #         sys.exit(1)
     Utils.load_config(config_path)
     print(settings.xiandb)
     print(len(settings.video_list))
@@ -57,10 +57,8 @@ if __name__ == '__main__':
 
 
 '''
-pyarmor gen --period 1 -e 2025-07-20 -b "m4e56344694c2d643f17351508632caaa" -O dist5 --pack onefile src3/main.py
 pyarmor gen  -O dist4 --pack onefile src/main.py
 pyinstaller --onefile  src/main.py
-pyarmor gen --enable-rft main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
+可用：
 pyarmor gen --enable-bcc --pack onefile  main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
-
 '''

@@ -70,13 +70,7 @@ class Video:
             self.video_type = "rtsp"
             self.cap = None
             self.ip = extract_ips(rtsp_url)
-            # self.cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
-            # self.cap.set(cv2.CAP_PROP_HW_ACCELERATION, 2)  # 0: None, 1: CUDA, 2: QSV
             self.rtsp_url=rtsp_url
-            # 检查是否成功打开 RTSP 流
-            # if not self.cap.isOpened():
-            #     print("RTSP打开失败")
-            #     raise RuntimeError("RTSP打开失败，视频源无效")
         else:
             raise ValueError("必须提供 video_path / http_url / rtsp_url 之一")
         self.link_time=time.time()
@@ -356,6 +350,7 @@ class Video:
             self._reconnect_rtsp()  # 递归重连
         self.cap.set(cv2.CAP_PROP_HW_ACCELERATION, 2)  # 0: None, 1: CUDA, 2: QSV
         self.link_time = time.time()
+
 
     def load_yaml(self, yaml_path):
         try:
