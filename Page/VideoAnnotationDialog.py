@@ -143,6 +143,8 @@ class VideoAnnotationDialog(QDialog):
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         # 行高根据内容自调
         self.table_widget.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self._table_syncing = False
+        self.table_widget.itemChanged.connect(self.on_table_item_changed)
 
         # 滚动区域包装表格
         scroll_area = QScrollArea()
@@ -322,6 +324,7 @@ class VideoAnnotationDialog(QDialog):
             # 点编号列
             item_id = QTableWidgetItem(str(ann['id']))
             item_id.setTextAlignment(Qt.AlignCenter)
+            item_id.setFlags(item_id.flags() | Qt.ItemIsEditable)
             self.table_widget.setItem(row, 0, item_id)
             # 类型列
             item_type = QTableWidgetItem(type_map.get(ann['type'], ann['type']))
@@ -335,6 +338,34 @@ class VideoAnnotationDialog(QDialog):
         # ── 让行高列宽根据内容自动调整 ───────────────
         self.table_widget.resizeColumnsToContents()
         self.table_widget.resizeRowsToContents()
+
+    def on_table_item_changed(self, item: QTableWidgetItem):
+        if self._table_syncing:
+            return
+        if item.column() != 0:
+            return
+        row = item.row()
+        if row < 0 or row >= len(self.annotation_data):
+            return
+
+        new_id = item.text().strip()
+        if not new_id:
+            self._table_syncing = True
+            item.setText(str(self.annotation_data[row].get("id", "")))
+            self._table_syncing = False
+            return
+
+        ann = self.annotation_data[row]
+        if ann.get("type") == "yarn":
+            for idx, other in enumerate(self.annotation_data):
+                if idx != row and other.get("type") == "yarn" and str(other.get("id")) == new_id:
+                    self._table_syncing = True
+                    item.setText(str(ann.get("id", "")))
+                    self._table_syncing = False
+                    return
+
+        ann["id"] = new_id
+        self.update_frame()
 
 
     def delete_annotation(self, row_index: int):
@@ -395,6 +426,7 @@ class VideoAnnotationDialog(QDialog):
         }
 
         # 5) 统一列表绘制（内部坐标为像素坐标）
+        self._table_syncing = True
         for ann in getattr(self, "annotation_data", []):
             ann_type = ann.get("type", "yarn")
             color = color_map.get(ann_type, (0, 255, 0))
@@ -429,6 +461,7 @@ class VideoAnnotationDialog(QDialog):
 
         # 7) 刷新右侧表格
         self.update_table()
+        self._table_syncing = False
 
     def show_magnifier(self, event):
         # 获取放大镜区域
@@ -679,7 +712,8 @@ class VideoAnnotationDialog(QDialog):
         data_to_save["id"] = self.video.id
         data_to_save["video_type"] = self.url_type_input.currentText()
         data_to_save["video_url"] = self.url_input.text()
-        data_to_save["hsv_range"] = self.video.hsv_range
+        self.video.hsv_range = self.hsv_range.copy()
+        data_to_save["hsv_range"] = self.hsv_range.copy()
 
         # 将数据写回 YAML 文件
         with open(self.video.yaml_path, 'w') as f:
@@ -785,6 +819,7 @@ class VideoAnnotationDialog(QDialog):
         self.video.add_type = data.get("add_type", "")
         self.video.id = data.get("id", "")
         self.video.hsv_range = data.get("hsv_range", self.video.hsv_range.copy())
+        self.hsv_range = self.video.hsv_range.copy()
         # 将元数据显示到对应的输入框
         self.video_id_input.setText(self.video.video_id)
         self.add_type_input.setText(self.video.add_type)

@@ -1,26 +1,15 @@
-from PyQt5.QtWidgets import QApplication
-
-from Page.VideoApp import VideoApp
 from activate import AuthorizationValidator,activate_if_needed
-import sys
 import settings
 import Utils
 from detect_xian import VideoProcessorThread
+from Page.web_app import run_web_server
 
 
 def start_background_thread():
     print('开始识别线程')
-    app = QApplication(sys.argv)
-    is_first = False
-    if settings.window is None:
-        is_first=True
-        settings.window = VideoApp(settings.video_list)
     if settings.video_thread is None:
-        settings.video_thread = VideoProcessorThread(settings.video_list,window=settings.window)
+        settings.video_thread = VideoProcessorThread(settings.video_list,window=None)
         settings.video_thread.start()
-    if is_first:
-        settings.window.show()
-        sys.exit(app.exec_())
 
 
 
@@ -44,6 +33,7 @@ if __name__ == '__main__':
     print(settings.xiandb)
     print(len(settings.video_list))
     start_background_thread()
+    run_web_server(host='0.0.0.0', port=5000)
 
 
 
