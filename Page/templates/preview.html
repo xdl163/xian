@@ -8,9 +8,10 @@
 </head>
 <body>
   <main class="container">
-    <h3>预览 {{ video_id }}</h3>
+    <h3>预览 {{ video_id }}（带识别结果）</h3>
+    <p class="tip">绿色：亮；红色：断线。框与文字为实时识别叠加。</p>
     <div class="preview-box">
-      <img src="{{ url_for('stream', video_id=video_id) }}" alt="视频预览" class="preview-img" />
+      <img src="{{ url_for('stream_result', video_id=video_id) }}" alt="视频预览" class="preview-img" />
     </div>
     <p><a class="btn-link" href="{{ url_for('index') }}">返回</a></p>
   </main>

@@ -139,6 +139,63 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
         yaml.safe_dump(data_to_save, f, allow_unicode=True)
 
 
+def _draw_recognition_overlay(video, frame):
+    draw = frame.copy()
+    points = getattr(video, "xian_points", {}) or {}
+    lights = getattr(video, "xian_light", None)
+
+    for i, (label, (_, _, x1, y1, x2, y2)) in enumerate(points.items()):
+        is_light = True
+        if lights is not None and len(lights) > i:
+            is_light = bool(lights[i])
+
+        color = (0, 255, 0) if is_light else (0, 0, 255)
+        text = f"{label}:{'亮' if is_light else '断线'}"
+
+        cv2.rectangle(draw, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+        cv2.putText(
+            draw,
+            text,
+            (int(x1), max(20, int(y1) - 5)),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            color,
+            2,
+            lineType=cv2.LINE_AA,
+        )
+
+    if getattr(video, "have_abnormal", False):
+        cv2.putText(
+            draw,
+            "摄像头异常",
+            (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 0, 255),
+            2,
+            lineType=cv2.LINE_AA,
+        )
+
+    return draw
+
+
+def _stream_generator(video, with_overlay=False):
+    while True:
+        frame = getattr(video, "this_frame", None)
+        if frame is None:
+            time.sleep(0.2)
+            continue
+
+        image = _draw_recognition_overlay(video, frame) if with_overlay else frame
+        ok, buf = cv2.imencode(".jpg", image)
+        if not ok:
+            time.sleep(0.05)
+            continue
+
+        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
+        time.sleep(0.15)
+
+
 @app.get("/")
 def index():
     return render_template("index.html", videos=settings.video_list)
@@ -156,21 +213,15 @@ def stream(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
+    return Response(_stream_generator(video, with_overlay=False), mimetype="multipart/x-mixed-replace; boundary=frame")
 
-    def gen():
-        while True:
-            frame = getattr(video, "this_frame", None)
-            if frame is None:
-                time.sleep(0.2)
-                continue
-            ok, buf = cv2.imencode(".jpg", frame)
-            if not ok:
-                time.sleep(0.05)
-                continue
-            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
-            time.sleep(0.15)
 
-    return Response(gen(), mimetype="multipart/x-mixed-replace; boundary=frame")
+@app.get("/stream_result/<int:video_id>")
+def stream_result(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return Response("not found", status=404)
+    return Response(_stream_generator(video, with_overlay=True), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/api/video/<int:video_id>/annotation")
