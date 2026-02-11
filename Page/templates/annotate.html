@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>标注 {{ video_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <h3>标注视频 {{ video_id }}</h3>
+
+    <section class="panel">
+      <div id="board" class="board">
+        <img id="img" src="{{ url_for('stream', video_id=video_id) }}" width="960" alt="视频流" />
+        <canvas id="layer"></canvas>
+      </div>
+    </section>
+
+    <section class="panel controls-row">
+      <label>类型：</label>
+      <select id="annType">
+        <option value="yarn">纱线</option>
+        <option value="laser_emitter">激光发射器</option>
+        <option value="laser_wall">激光墙壁</option>
+      </select>
+      <label>点编号：</label>
+      <input id="pointId" placeholder="可重命名" />
+      <button id="renameBtn" type="button">重命名选中点</button>
+      <button id="removeBtn" type="button">删除选中点</button>
+    </section>
+
+    <section class="panel controls-row">
+      <span>HSV:</span>
+      <label>Hmin <input id="h_min" size="3" /></label>
+      <label>Hmax <input id="h_max" size="3" /></label>
+      <label>Smin <input id="s_min" size="3" /></label>
+      <label>Smax <input id="s_max" size="3" /></label>
+      <label>Vmin <input id="v_min" size="3" /></label>
+      <label>Vmax <input id="v_max" size="3" /></label>
+    </section>
+
+    <section class="panel meta-grid">
+      <label>video_id <input id="video_id" /></label>
+      <label>add_type <input id="add_type" /></label>
+      <label>id <input id="meta_id" /></label>
+      <label>video_type <input id="video_type" /></label>
+      <label class="full">video_url <input id="video_url" /></label>
+    </section>
+
+    <p>
+      <button id="saveBtn" type="button">保存</button>
+      <a class="btn-link" href="{{ url_for('index') }}">返回</a>
+      <span id="msg" class="tip"></span>
+    </p>
+
+    <table class="table">
+      <thead>
+      <tr><th>#</th><th>类型</th><th>坐标</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </main>
+
+  <script>
+    window.APP_CONFIG = {
+      videoId: {{ video_id | tojson }},
+      frameWidth: {{ frame_width | tojson }},
+      frameHeight: {{ frame_height | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/annotate.js') }}"></script>
+</body>
+</html>

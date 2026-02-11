@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>预览 {{ video_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <h3>预览 {{ video_id }}</h3>
+    <div class="preview-box">
+      <img src="{{ url_for('stream', video_id=video_id) }}" alt="视频预览" class="preview-img" />
+    </div>
+    <p><a class="btn-link" href="{{ url_for('index') }}">返回</a></p>
+  </main>
+</body>
+</html>
