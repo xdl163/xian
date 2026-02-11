@@ -5,7 +5,9 @@ import torch
 # =========================
 # 全局：加载 PT / TorchScript 模型（只加载一次）
 # =========================
-MODEL_PATH = r"E:\PycharmProjects\xian_util_new\train\runs\run_3_s4\quant_eval_all\int8_scripted.pt"
+# MODEL_PATH = r"E:\PycharmProjects\xian_util_new\train\runs\run_3_s4\quant_eval_all\int8_scripted.pt"
+
+MODEL_PATH = r'C:\Users\HXGW\Desktop\1\int8_scripted.pt'
 DEVICE = "cpu"   # INT8 Scripted 必须 CPU
 
 _model = torch.jit.load(MODEL_PATH, map_location=DEVICE)
@@ -51,7 +53,7 @@ def img_cls(image_list):
 # =========================
 # 批量分类函数
 # =========================
-def img_cls_pt(image_list, threshold: float = 0.5):
+def img_cls_pt(image_list, threshold: float = 0.5, verbose: bool = False):
     """
     使用 PT / TorchScript 模型，对 image_list 进行批量预测
 
@@ -95,6 +97,11 @@ def img_cls_pt(image_list, threshold: float = 0.5):
         prob_light = prob[:, 1]                # light 类
 
         pred = (prob_light >= threshold).long()
-
+    # ---------- 2.5) 打印置信度 ----------
+    if verbose:
+        # 转成 python list，避免打印 tensor 的设备信息
+        probs = prob_light.detach().cpu().numpy().tolist()
+        # 如果你想要一行打印全部：
+        print("[img_cls_pt] prob_light_all:", [round(p, 6) for p in probs])
     # ---------- 3) 返回 python list ----------
     return pred.cpu().tolist()

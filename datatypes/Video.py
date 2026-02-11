@@ -254,7 +254,7 @@ class Video:
                 # 文件视频到结尾直接退出循环
                 if self.video_type == 'file':
                     break
-                time.sleep(0.05)
+                time.sleep(0.5)
                 continue
 
             with self._buf_lock:

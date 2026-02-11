@@ -142,81 +142,78 @@ class VideoProcessorThread(threading.Thread):
 
 
                     # ————————————— 3. HSV → 二值化（两张掩码） —————————————
-                    hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+                    # hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-                    base_mask = cv2.inRange(hsv, video.hsv_lower, video.hsv_upper)
+                    # base_mask = cv2.inRange(hsv, video.hsv_lower, video.hsv_upper)
 
-                    base_mask2 = cv2.dilate(base_mask, kernel, 1)
+                    # base_mask2 = cv2.dilate(base_mask, kernel, 1)
 
-                    # 3-2 细条纹过滤掩码（new_mask）
-                    contours, _ = cv2.findContours(base_mask2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    strip_mask = np.zeros_like(base_mask2)
-                    for cnt in contours:
-                        x, y, w, h_cnt = cv2.boundingRect(cnt)
-                        if w < settings.point_max_size:
-                            cv2.drawContours(strip_mask, [cnt], -1, 255, -1)
+                    # # 3-2 细条纹过滤掩码（new_mask）
+                    # contours, _ = cv2.findContours(base_mask2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                    # strip_mask = np.zeros_like(base_mask2)
+                    # for cnt in contours:
+                    #     x, y, w, h_cnt = cv2.boundingRect(cnt)
+                    #     if w < settings.point_max_size:
+                    #         cv2.drawContours(strip_mask, [cnt], -1, 255, -1)
 
-                    strip_mask = cv2.erode(strip_mask, kernel, 1)
+                    # strip_mask = cv2.erode(strip_mask, kernel, 1)
 
                     # ————————————— 4. 初始化 —————————————
 
+                    # ————————————— 3. 用 PT 模型判定每个点位（替代二值化/条纹过滤） —————————————
+
+                    # 初始化（保留你原来的初始化块）
                     if not isinstance(video.xian_light, np.ndarray):
                         n = len(video.xian_points)
-                        # 初始化
-                        video.xian_light     = np.ones(n, dtype=bool)
+                        video.xian_light       = np.ones(n, dtype=bool)
                         video.xian_allow_light = np.ones(n, dtype=bool)
+                        video.error_counts     = np.zeros(n, dtype=np.uint16)
+                        video.correct_counts   = np.zeros(n, dtype=np.uint16)
+                        video._fail_mask       = np.empty(n, dtype=bool)
+                        video._pass_mask       = np.empty(n, dtype=bool)
+                        video.white_num        = np.zeros(n, dtype=np.uint16)
 
-                        video.error_counts   = np.zeros(n, dtype=np.uint16)
-                        video.correct_counts = np.zeros(n, dtype=np.uint16)
-                        video._fail_mask     = np.empty(n, dtype=bool)
-                        video._pass_mask     = np.empty(n, dtype=bool)
-                        video.white_num      = np.zeros(n, dtype=np.uint16)
+                    n = len(video.xian_points)
 
-                    # ----------------------------------------------------------
-                    # 4-A. 判断每个矩形框内是否有白色像素
-                    # ----------------------------------------------------------
-                    # 将 boxes 转到 ROI 内部坐标
+                    # 将 boxes 转到 ROI 内部坐标（保留你的做法）
                     roi_boxes = boxes.copy()
-                    roi_boxes[:, [0, 2]] -= x0           # x1,x2 减 x0
-                    roi_boxes[:, [1, 3]] -= y0           # y1,y2 减 y0
-                    roi_boxes = roi_boxes.clip(min=0)    # 防越界
+                    roi_boxes[:, [0, 2]] -= x0
+                    roi_boxes[:, [1, 3]] -= y0
 
-                    # helper 函数：返回掩码在框内是否有白点
-                    def has_white(mask_src, rects,num=1):
-                        res = np.zeros(len(rects), dtype=bool)
-                        zero_nums=[]
-                        for i, (x1r, y1r, x2r, y2r) in enumerate(rects):
-                            if x1r >= x2r or y1r >= y2r:   # 空框保护
-                                continue
-                            zero_num=cv2.countNonZero(mask_src[y1r:y2r+1, x1r:x2r+1])
-                            zero_nums.append(zero_num)
-                            if zero_num >=num:
-                                res[i] = True
-                        return res,zero_nums
-                    hit1 ,zero_nums1= has_white(base_mask , roi_boxes)   # 基础掩码
-                    if video.last_base_mask is not None:
-                        zero_nums_diff=[abs(x - y) for x, y in zip(video.last_base_mask, zero_nums1)]
-                        zero_nums_diff.append(video.id)
-                        zero_nums_diff.append(str(time.time()))
-                        zero_nums_diffs.append(zero_nums_diff)
-                        if len(zero_nums_diffs)>300:
-                            print('写入')
-                            with open(csv_path, 'a', newline='', encoding='utf-8') as f:
-                                writer = csv.writer(f)
-                                for zero_nums_diff in zero_nums_diffs:
-                                    writer.writerow(zero_nums_diff)
-                            zero_nums_diffs=[]
-                        # video.channelPlotterCV.update([abs(x - y) for x, y in zip(video.last_base_mask, zero_nums1)])
-                    video.last_base_mask = zero_nums1
+                    # clip 到 ROI 边界（重要：否则可能出现负数或超过 roi 尺寸）
+                    H, W = roi.shape[:2]
+                    roi_boxes[:, [0, 2]] = np.clip(roi_boxes[:, [0, 2]], 0, W)
+                    roi_boxes[:, [1, 3]] = np.clip(roi_boxes[:, [1, 3]], 0, H)
 
-                    # print(zero_nums1)
-                    hit2 ,_ = has_white(strip_mask, roi_boxes)   # 细条纹掩码
-                    # 如果两掩码一致，则为有效
-                    valid = ~(hit1 & ~hit2)
+                    # valid：框必须有面积（后续计数/状态更新都只在 valid==True 上进行）
+                    valid = (roi_boxes[:, 2] > roi_boxes[:, 0]) & (roi_boxes[:, 3] > roi_boxes[:, 1])
 
+                    # 裁剪 patch（只裁剪 valid 的），并记录回填索引
+                    patches = []
+                    idx_map = []  # patches[k] 对应点位 idx_map[k]
+                    for i, (x1r, y1r, x2r, y2r) in enumerate(roi_boxes):
+                        if not valid[i]:
+                            continue
+                        patch = roi[y1r:y2r, x1r:x2r]  # 注意：这里使用“右开区间”，与 detect_errors 的 crop 风格一致
+                        if patch.size == 0:
+                            valid[i] = False
+                            continue
+                        patches.append(np.ascontiguousarray(patch))
+                        idx_map.append(i)
 
-                    # 根据 valid，更新 hit 值，只有 valid 为 True 时才更新
-                    hit   = np.where(valid, hit1, video.xian_light)   # 结果一致才采用
+                    # 默认 hit 先用上一帧状态兜底，保证 shape / dtype 一致
+                    hit_model = video.xian_light.copy()
+
+                    # 批量推理：返回 [0/1]，1=light
+                    if patches:
+                        print(video.id)
+                        pred_list = img_cls_onnx(patches, threshold=0.9,verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
+                        for k, i in enumerate(idx_map):
+                            hit_model[i] = (pred_list[k] == 1)
+
+                    # 最终 hit：只有 valid=True 才采用新结果，否则保持旧状态（与你原来 np.where(valid, hit1, video.xian_light) 一致）
+                    hit = np.where(valid, hit_model, video.xian_light)
+
 
                     fail_raw = ~hit          # 本帧“断线”判定
                     ok_raw   =  hit          # 本帧“亮”判定
