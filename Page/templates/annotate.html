@@ -10,56 +10,77 @@
   <main class="container">
     <h3>标注视频 {{ video_id }}</h3>
 
-    <section class="panel">
-      <div id="board" class="board">
-        <img id="img" src="{{ url_for('stream', video_id=video_id) }}" width="960" alt="视频流" />
-        <canvas id="layer"></canvas>
+    <section class="annotate-layout">
+      <div class="panel annotate-left">
+        <div id="board" class="board">
+          <img id="img" src="{{ url_for('stream', video_id=video_id) }}" width="960" alt="视频流" />
+          <canvas id="layer"></canvas>
+        </div>
       </div>
+
+      <aside class="annotate-right">
+        <section class="panel config-block">
+          <h4>标注控制</h4>
+          <div class="controls-col">
+            <label>类型</label>
+            <select id="annType">
+              <option value="yarn">纱线</option>
+              <option value="laser_emitter">激光发射器</option>
+              <option value="laser_wall">激光墙壁</option>
+            </select>
+
+            <label>点编号</label>
+            <input id="pointId" placeholder="可重命名" />
+
+            <div class="btn-row">
+              <button id="renameBtn" type="button">重命名选中点</button>
+              <button id="removeBtn" type="button">删除选中点</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel config-block">
+          <h4>HSV 阈值</h4>
+          <div class="hsv-grid">
+            <label>Hmin <input id="h_min" /></label>
+            <label>Hmax <input id="h_max" /></label>
+            <label>Smin <input id="s_min" /></label>
+            <label>Smax <input id="s_max" /></label>
+            <label>Vmin <input id="v_min" /></label>
+            <label>Vmax <input id="v_max" /></label>
+          </div>
+        </section>
+
+        <section class="panel config-block">
+          <h4>视频配置</h4>
+          <div class="meta-col">
+            <label>video_id <input id="video_id" /></label>
+            <label>add_type <input id="add_type" /></label>
+            <label>id <input id="meta_id" /></label>
+            <label>video_type <input id="video_type" /></label>
+            <label>video_url <input id="video_url" /></label>
+          </div>
+        </section>
+
+        <section class="panel config-block">
+          <div class="btn-row">
+            <button id="saveBtn" type="button">保存</button>
+            <a class="btn-link" href="{{ url_for('index') }}">返回</a>
+          </div>
+          <span id="msg" class="tip"></span>
+        </section>
+
+        <section class="panel config-block">
+          <h4>标注列表</h4>
+          <table class="table">
+            <thead>
+            <tr><th>#</th><th>类型</th><th>坐标</th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </section>
+      </aside>
     </section>
-
-    <section class="panel controls-row">
-      <label>类型：</label>
-      <select id="annType">
-        <option value="yarn">纱线</option>
-        <option value="laser_emitter">激光发射器</option>
-        <option value="laser_wall">激光墙壁</option>
-      </select>
-      <label>点编号：</label>
-      <input id="pointId" placeholder="可重命名" />
-      <button id="renameBtn" type="button">重命名选中点</button>
-      <button id="removeBtn" type="button">删除选中点</button>
-    </section>
-
-    <section class="panel controls-row">
-      <span>HSV:</span>
-      <label>Hmin <input id="h_min" size="3" /></label>
-      <label>Hmax <input id="h_max" size="3" /></label>
-      <label>Smin <input id="s_min" size="3" /></label>
-      <label>Smax <input id="s_max" size="3" /></label>
-      <label>Vmin <input id="v_min" size="3" /></label>
-      <label>Vmax <input id="v_max" size="3" /></label>
-    </section>
-
-    <section class="panel meta-grid">
-      <label>video_id <input id="video_id" /></label>
-      <label>add_type <input id="add_type" /></label>
-      <label>id <input id="meta_id" /></label>
-      <label>video_type <input id="video_type" /></label>
-      <label class="full">video_url <input id="video_url" /></label>
-    </section>
-
-    <p>
-      <button id="saveBtn" type="button">保存</button>
-      <a class="btn-link" href="{{ url_for('index') }}">返回</a>
-      <span id="msg" class="tip"></span>
-    </p>
-
-    <table class="table">
-      <thead>
-      <tr><th>#</th><th>类型</th><th>坐标</th></tr>
-      </thead>
-      <tbody id="rows"></tbody>
-    </table>
   </main>
 
   <script>
