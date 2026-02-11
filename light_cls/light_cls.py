@@ -5,9 +5,9 @@ import torch
 # =========================
 # 全局：加载 PT / TorchScript 模型（只加载一次）
 # =========================
-# MODEL_PATH = r"E:\PycharmProjects\xian_util_new\train\runs\run_3_s4\quant_eval_all\int8_scripted.pt"
+MODEL_PATH = r"E:\PycharmProjects\xian_util_new\train\runs\run_3_s4\quant_eval_all\int8_scripted.pt"
 
-MODEL_PATH = r'C:\Users\HXGW\Desktop\1\int8_scripted.pt'
+# MODEL_PATH = r'C:\Users\HXGW\Desktop\1\int8_scripted.pt'
 DEVICE = "cpu"   # INT8 Scripted 必须 CPU
 
 _model = torch.jit.load(MODEL_PATH, map_location=DEVICE)
