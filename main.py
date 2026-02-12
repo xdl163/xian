@@ -1,4 +1,3 @@
-from activate import AuthorizationValidator,activate_if_needed
 import settings
 import Utils
 from detect_xian import VideoProcessorThread
