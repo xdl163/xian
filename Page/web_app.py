@@ -140,55 +140,41 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
         yaml.safe_dump(data_to_save, f, allow_unicode=True)
 
 
-def _draw_recognition_overlay(video, frame):
-    draw = frame.copy()
+def _recognition_payload(video):
     points = getattr(video, "xian_points", {}) or {}
     lights = getattr(video, "xian_light", None)
+    results = []
 
     for i, (label, (_, _, x1, y1, x2, y2)) in enumerate(points.items()):
         is_light = True
         if lights is not None and len(lights) > i:
             is_light = bool(lights[i])
+        results.append({
+            "id": str(label),
+            "x1": int(x1),
+            "y1": int(y1),
+            "x2": int(x2),
+            "y2": int(y2),
+            "is_light": is_light,
+        })
 
-        color = (0, 255, 0) if is_light else (0, 0, 255)
-        text = f"{label}:{'亮' if is_light else '断线'}"
-
-        cv2.rectangle(draw, (int(x1), int(y1)), (int(x2), int(y2)), color, 1)
-        cv2.putText(
-            draw,
-            text,
-            (int(x1), max(20, int(y1) - 5)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            color,
-            1,
-            lineType=cv2.LINE_AA,
-        )
-
-    if getattr(video, "have_abnormal", False):
-        cv2.putText(
-            draw,
-            "摄像头异常",
-            (20, 40),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1.0,
-            (0, 0, 255),
-            2,
-            lineType=cv2.LINE_AA,
-        )
-
-    return draw
+    return {
+        "points": results,
+        "have_abnormal": bool(getattr(video, "have_abnormal", False)),
+        "frame_width": int(getattr(video, "frame_width", 0) or 0),
+        "frame_height": int(getattr(video, "frame_height", 0) or 0),
+        "ts": time.time(),
+    }
 
 
-def _stream_generator(video, with_overlay=False):
+def _stream_generator(video):
     while True:
         frame = getattr(video, "this_frame", None)
         if frame is None:
             time.sleep(0.2)
             continue
 
-        image = _draw_recognition_overlay(video, frame) if with_overlay else frame
-        ok, buf = cv2.imencode(".jpg", image)
+        ok, buf = cv2.imencode(".jpg", frame)
         if not ok:
             time.sleep(0.05)
             continue
@@ -214,7 +200,7 @@ def stream(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
-    return Response(_stream_generator(video, with_overlay=False), mimetype="multipart/x-mixed-replace; boundary=frame")
+    return Response(_stream_generator(video), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/stream_result/<int:video_id>")
@@ -222,7 +208,15 @@ def stream_result(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
-    return Response(_stream_generator(video, with_overlay=True), mimetype="multipart/x-mixed-replace; boundary=frame")
+    return Response(_stream_generator(video), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/api/video/<int:video_id>/recognition")
+def get_recognition(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(_recognition_payload(video))
 
 
 @app.get("/api/video/<int:video_id>/frame")

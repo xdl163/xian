@@ -17,6 +17,7 @@
 
   const canvas = document.getElementById('frameCanvas');
   const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
   const rows = document.getElementById('rows');
   const msg = document.getElementById('msg');
   const slider = document.getElementById('frameSlider');
@@ -268,6 +269,15 @@
     fetchFrame();
   }
 
+  function clearFrameCache() {
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+    frameBuffer = [];
+    frameCache.clear();
+  }
+
   function bindEvents() {
     canvas.addEventListener('mousedown', (e) => {
       const p = frameToCanvas(e);
@@ -391,6 +401,8 @@
       setMsg(`加载失败: ${err}`, true);
     }
   }
+
+  window.addEventListener('beforeunload', clearFrameCache);
 
   init();
 })();

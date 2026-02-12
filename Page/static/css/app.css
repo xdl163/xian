@@ -48,6 +48,14 @@ body {
   width: 100%;
   display: block;
 }
+.preview-stage {
+  position: relative;
+}
+#previewOverlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 button {
   background: #1f2937;
   border: 1px solid var(--line);
@@ -74,11 +82,12 @@ button:hover { border-color: var(--primary); }
   margin-bottom: 8px;
 }
 .frame-canvas {
-  width: 100%;
-  max-width: 100%;
+  width: auto;
+  max-width: none;
   border: 1px solid var(--line);
   border-radius: 6px;
   display: block;
+  image-rendering: auto;
 }
 .frame-slider {
   width: 100%;

@@ -9,11 +9,18 @@
 <body>
   <main class="container">
     <p class="top-actions"><a class="btn-link" href="{{ url_for('index') }}">返回</a></p>
-    <h3>预览 {{ video_id }}（带识别结果）</h3>
-    <p class="tip">绿色：亮；红色：断线。框与文字为实时识别叠加。</p>
-    <div class="preview-box">
-      <img src="{{ url_for('stream_result', video_id=video_id) }}" alt="视频预览" class="preview-img" />
+    <h3>预览 {{ video_id }}（前端绘制识别框）</h3>
+    <div class="preview-box preview-stage" id="previewStage">
+      <img id="previewImg" src="{{ url_for('stream', video_id=video_id) }}" alt="视频预览" class="preview-img" />
+      <canvas id="previewOverlay"></canvas>
     </div>
   </main>
+
+  <script>
+    window.PREVIEW_CONFIG = {
+      videoId: {{ video_id | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/preview.js') }}"></script>
 </body>
 </html>
