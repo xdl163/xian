@@ -207,3 +207,40 @@ button:hover { border-color: var(--primary); }
 #videoTable tbody tr.active-row .id-btn {
   color: #f87171;
 }
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+.modal-mask.hidden {
+  display: none;
+}
+.modal-card {
+  width: min(560px, calc(100vw - 24px));
+  background: #0f172a;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+}
+#modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0;
+}
+#modalBody input {
+  width: 100%;
+  background: #0b1220;
+  border: 1px solid var(--line);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+.modal-actions {
+  justify-content: flex-end;
+}

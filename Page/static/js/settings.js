@@ -63,6 +63,26 @@
     }
   });
 
+  document.getElementById('changePasswordBtn').addEventListener('click', async () => {
+    const oldPassword = document.getElementById('oldPassword').value.trim();
+    const newPassword = document.getElementById('newPassword').value.trim();
+    if (!oldPassword || !newPassword) {
+      setMsg('请填写原密码和新密码', true);
+      return;
+    }
+    try {
+      const resp = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      setMsg(resp.ok ? '密码修改成功' : `密码修改失败：${data.message || data.error || resp.status}`, !resp.ok);
+    } catch (e) {
+      setMsg(`密码修改失败: ${e}`, true);
+    }
+  });
+
   document.getElementById('restartBtn').addEventListener('click', async () => {
     if (!confirm('确认重启后端并重载视频吗？')) return;
     try {

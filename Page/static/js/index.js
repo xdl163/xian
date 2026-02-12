@@ -7,6 +7,12 @@
   const drawToggle = document.getElementById('toggleDraw');
   const homeMsg = document.getElementById('homeMsg');
 
+  const modalMask = document.getElementById('modalMask');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalBody = document.getElementById('modalBody');
+  const modalOkBtn = document.getElementById('modalOkBtn');
+  const modalCancelBtn = document.getElementById('modalCancelBtn');
+
   let currentVideoId = Number(window.INIT_VIDEO_ID || -1);
   let latestFrame = null;
   let latestRecognition = null;
@@ -17,6 +23,80 @@
   function setMsg(text, err = false) {
     homeMsg.textContent = text;
     homeMsg.style.color = err ? '#f87171' : '#9ca3af';
+  }
+
+  function openModal(title, bodyHtml) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = bodyHtml;
+    modalMask.classList.remove('hidden');
+  }
+
+  function closeModal() {
+    modalMask.classList.add('hidden');
+    modalBody.innerHTML = '';
+    modalOkBtn.onclick = null;
+    modalCancelBtn.onclick = null;
+  }
+
+  function askPassword() {
+    return new Promise((resolve) => {
+      openModal('密码验证', '<label>密码 <input id="modalPassword" type="password" autocomplete="off" /></label>');
+      modalCancelBtn.onclick = () => { closeModal(); resolve(null); };
+      modalOkBtn.onclick = async () => {
+        const password = (document.getElementById('modalPassword')?.value || '').trim();
+        if (!password) return;
+        const vr = await fetch('/api/verify-password', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
+        });
+        const vd = await vr.json();
+        if (!vd.ok) {
+          setMsg('密码错误', true);
+          return;
+        }
+        closeModal();
+        resolve(password);
+      };
+    });
+  }
+
+  function askRecordDrawOption() {
+    return new Promise((resolve) => {
+      openModal('录制选项', `
+        <label class="inline-check"><input name="recordDraw" type="radio" value="1" checked /> 录制时绘制识别框</label>
+        <label class="inline-check"><input name="recordDraw" type="radio" value="0" /> 录制时不绘制识别框</label>
+      `);
+      modalCancelBtn.onclick = () => { closeModal(); resolve(null); };
+      modalOkBtn.onclick = () => {
+        const selected = document.querySelector('input[name="recordDraw"]:checked');
+        closeModal();
+        resolve(selected?.value === '1');
+      };
+    });
+  }
+
+  function askAddCameraPayload() {
+    return new Promise((resolve) => {
+      openModal('添加摄像头', `
+        <label>video_id <input id="cam_video_id" type="text" /></label>
+        <label>add_type <input id="cam_add_type" type="text" /></label>
+        <label>id <input id="cam_id" type="text" /></label>
+        <label>video_type <input id="cam_video_type" type="text" value="http" /></label>
+        <label>video_url <input id="cam_video_url" type="text" /></label>
+      `);
+      modalCancelBtn.onclick = () => { closeModal(); resolve(null); };
+      modalOkBtn.onclick = () => {
+        const payload = {
+          video_id: document.getElementById('cam_video_id')?.value?.trim() || '',
+          add_type: document.getElementById('cam_add_type')?.value?.trim() || '',
+          id: document.getElementById('cam_id')?.value?.trim() || '',
+          video_type: document.getElementById('cam_video_type')?.value?.trim() || 'http',
+          video_url: document.getElementById('cam_video_url')?.value?.trim() || '',
+        };
+        if (!payload.id || !payload.video_url) return;
+        closeModal();
+        resolve(payload);
+      };
+    });
   }
 
   function syncSize(width, height) {
@@ -39,6 +119,21 @@
     previewTitle.textContent = currentVideoId > 0 ? `预览 ${currentVideoId}` : '预览';
   }
 
+  function drawBoxes(ctx, width, height, recognition) {
+    if (!recognition) return;
+    const srcW = recognition.frame_width || width || 1;
+    const srcH = recognition.frame_height || height || 1;
+    for (const p of recognition.points || []) {
+      const x = p.x1 / srcW * width;
+      const y = p.y1 / srcH * height;
+      const w = (p.x2 - p.x1) / srcW * width;
+      const h = (p.y2 - p.y1) / srcH * height;
+      ctx.strokeStyle = p.is_light ? '#22c55e' : '#ef4444';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w, h);
+    }
+  }
+
   function redraw() {
     fctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
     octx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
@@ -46,18 +141,7 @@
 
     fctx.drawImage(latestFrame, 0, 0, frameCanvas.width, frameCanvas.height);
     if (!drawToggle.checked || !latestRecognition) return;
-
-    const srcW = latestRecognition.frame_width || frameCanvas.width || 1;
-    const srcH = latestRecognition.frame_height || frameCanvas.height || 1;
-    for (const p of latestRecognition.points || []) {
-      const x = p.x1 / srcW * overlayCanvas.width;
-      const y = p.y1 / srcH * overlayCanvas.height;
-      const w = (p.x2 - p.x1) / srcW * overlayCanvas.width;
-      const h = (p.y2 - p.y1) / srcH * overlayCanvas.height;
-      octx.strokeStyle = p.is_light ? '#22c55e' : '#ef4444';
-      octx.lineWidth = 1;
-      octx.strokeRect(x, y, w, h);
-    }
+    drawBoxes(octx, overlayCanvas.width, overlayCanvas.height, latestRecognition);
   }
 
   async function fetchFrame(videoId) {
@@ -68,6 +152,12 @@
     img.src = `data:image/png;base64,${data.image}`;
     await img.decode();
     return { ...data, img };
+  }
+
+  async function fetchRecognition(videoId) {
+    const resp = await fetch(`/api/video/${videoId}/recognition`);
+    if (!resp.ok) return null;
+    return resp.json();
   }
 
   async function pollPreview() {
@@ -86,30 +176,13 @@
   async function pollRecognition() {
     if (currentVideoId < 0) return;
     try {
-      const resp = await fetch(`/api/video/${currentVideoId}/recognition`);
-      if (!resp.ok) return;
-      latestRecognition = await resp.json();
+      latestRecognition = await fetchRecognition(currentVideoId);
       redraw();
     } catch (_e) {}
   }
 
-  async function verifyPassword() {
-    const password = prompt('请输入密码');
-    if (!password) return null;
-    const vr = await fetch('/api/verify-password', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
-    });
-    const vd = await vr.json();
-    if (!vd.ok) {
-      alert('密码错误');
-      return null;
-    }
-    return password;
-  }
-
-  function flushRecorder(rec, force = false) {
+  function flushRecorder(rec) {
     if (!rec.chunks.length) return;
-    if (!force && rec.chunks.length < 2) return;
     const blob = new Blob(rec.chunks, { type: 'video/webm' });
     rec.chunks = [];
     const a = document.createElement('a');
@@ -119,12 +192,12 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  function startRecording(videoId, btn) {
+  function startRecording(videoId, btn, drawRecognition) {
     const cvs = document.createElement('canvas');
     const cctx = cvs.getContext('2d');
     const stream = cvs.captureStream(5);
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-    const rec = { videoId, chunks: [], mediaRecorder, frameTimer: null, chunkTimer: null, flushTimer: null, active: true };
+    const rec = { videoId, drawRecognition, chunks: [], mediaRecorder, frameTimer: null, chunkTimer: null, flushTimer: null, active: true };
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) rec.chunks.push(e.data);
@@ -136,7 +209,7 @@
     }, 1000);
 
     rec.flushTimer = setInterval(() => {
-      flushRecorder(rec, true);
+      flushRecorder(rec);
       setMsg(`录制 ${videoId} 自动分片下载（10分钟）`);
     }, AUTO_DOWNLOAD_MS);
 
@@ -149,7 +222,12 @@
           cvs.width = data.width;
           cvs.height = data.height;
         }
+        cctx.clearRect(0, 0, cvs.width, cvs.height);
         cctx.drawImage(data.img, 0, 0, cvs.width, cvs.height);
+        if (rec.drawRecognition) {
+          const recData = await fetchRecognition(videoId);
+          drawBoxes(cctx, cvs.width, cvs.height, recData);
+        }
       } catch (_e) {}
     }, 250);
 
@@ -169,39 +247,36 @@
       rec.mediaRecorder.requestData();
       rec.mediaRecorder.stop();
     }
-    flushRecorder(rec, true);
+    flushRecorder(rec);
     recorders.delete(videoId);
     btn.textContent = '开始录制';
   }
 
   async function openSettingsPage() {
-    const password = await verifyPassword();
+    const password = await askPassword();
     if (!password) return;
     window.location.href = `/settings?password=${encodeURIComponent(password)}`;
   }
 
   async function openAnnotatePage(videoId) {
-    const password = await verifyPassword();
+    const password = await askPassword();
     if (!password) return;
-    const drawRecognition = confirm('开始标注：是否绘制识别框？');
+    const drawRecognition = await askRecordDrawOption();
+    if (drawRecognition === null) return;
     window.location.href = `/annotate/${videoId}?password=${encodeURIComponent(password)}&draw_recognition=${drawRecognition ? 1 : 0}`;
   }
 
   async function addCamera() {
-    const password = await verifyPassword();
+    const password = await askPassword();
     if (!password) return;
-
-    const video_id = prompt('video_id:'); if (video_id === null) return;
-    const add_type = prompt('add_type:'); if (add_type === null) return;
-    const id = prompt('id:'); if (id === null) return;
-    const video_type = prompt('video_type(默认 http):', 'http'); if (video_type === null) return;
-    const video_url = prompt('video_url:'); if (video_url === null) return;
+    const cameraPayload = await askAddCameraPayload();
+    if (!cameraPayload) return;
 
     try {
       const resp = await fetch('/api/camera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password, video_id, add_type, id, video_type: video_type || 'http', video_url }),
+        body: JSON.stringify({ password, ...cameraPayload }),
       });
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) {
@@ -218,7 +293,7 @@
   document.getElementById('openSettingsBtn').addEventListener('click', openSettingsPage);
   document.getElementById('addCameraBtn').addEventListener('click', addCamera);
 
-  document.getElementById('videoTable').addEventListener('click', (e) => {
+  document.getElementById('videoTable').addEventListener('click', async (e) => {
     const id = Number(e.target.dataset.id);
     if (!id) return;
 
@@ -231,17 +306,26 @@
     }
 
     if (e.target.classList.contains('annotate-btn')) {
-      openAnnotatePage(id);
+      await openAnnotatePage(id);
       return;
     }
 
     if (e.target.classList.contains('record-btn')) {
-      if (recorders.has(id)) stopRecording(id, e.target);
-      else startRecording(id, e.target);
+      if (recorders.has(id)) {
+        stopRecording(id, e.target);
+      } else {
+        const drawRecognition = await askRecordDrawOption();
+        if (drawRecognition === null) return;
+        startRecording(id, e.target, drawRecognition);
+      }
     }
   });
 
   drawToggle.addEventListener('change', redraw);
+  modalMask.addEventListener('click', (e) => {
+    if (e.target === modalMask) closeModal();
+  });
+
   window.addEventListener('beforeunload', () => {
     for (const [vid] of recorders.entries()) stopRecording(vid, { textContent: '' });
   });

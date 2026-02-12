@@ -43,6 +43,18 @@
       </aside>
     </section>
   </main>
+
+  <div id="modalMask" class="modal-mask hidden">
+    <div class="modal-card">
+      <h4 id="modalTitle">标题</h4>
+      <div id="modalBody"></div>
+      <div class="btn-row modal-actions">
+        <button id="modalOkBtn" type="button">确定</button>
+        <button id="modalCancelBtn" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+
   <script>window.INIT_VIDEO_ID = {{ videos[0].id if videos else -1 }};</script>
   <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>
