@@ -10,8 +10,8 @@
   <main class="container">
     <p class="top-actions"><a class="btn-link" href="{{ url_for('index') }}">返回</a></p>
     <h3>预览 {{ video_id }}（前端绘制识别框）</h3>
-    <div class="preview-box preview-stage" id="previewStage">
-      <img id="previewImg" src="{{ url_for('stream', video_id=video_id) }}" alt="视频预览" class="preview-img" />
+    <div class="preview-box preview-stage">
+      <canvas id="previewFrameCanvas" class="preview-canvas"></canvas>
       <canvas id="previewOverlay"></canvas>
     </div>
   </main>

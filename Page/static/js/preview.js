@@ -1,48 +1,85 @@
 (() => {
   const { videoId } = window.PREVIEW_CONFIG;
-  const img = document.getElementById('previewImg');
-  const canvas = document.getElementById('previewOverlay');
-  const ctx = canvas.getContext('2d');
+  const frameCanvas = document.getElementById('previewFrameCanvas');
+  const overlayCanvas = document.getElementById('previewOverlay');
+  const fctx = frameCanvas.getContext('2d');
+  const octx = overlayCanvas.getContext('2d');
 
-  function syncSize() {
-    canvas.width = img.clientWidth;
-    canvas.height = img.clientHeight;
-    canvas.style.width = `${img.clientWidth}px`;
-    canvas.style.height = `${img.clientHeight}px`;
+  let latestFrame = null;
+  let latestRecognition = null;
+
+  function syncSize(width, height) {
+    if (!width || !height) return;
+    frameCanvas.width = width;
+    frameCanvas.height = height;
+    overlayCanvas.width = width;
+    overlayCanvas.height = height;
+
+    frameCanvas.style.width = '100%';
+    frameCanvas.style.height = 'auto';
+    overlayCanvas.style.width = frameCanvas.clientWidth ? `${frameCanvas.clientWidth}px` : '100%';
+    overlayCanvas.style.height = frameCanvas.clientHeight ? `${frameCanvas.clientHeight}px` : 'auto';
   }
 
-  function draw(result) {
-    if (!result) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  function redraw() {
+    if (!latestFrame) return;
 
-    const srcW = result.frame_width || 1;
-    const srcH = result.frame_height || 1;
+    fctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height);
+    fctx.drawImage(latestFrame, 0, 0, frameCanvas.width, frameCanvas.height);
 
-    for (const p of result.points || []) {
-      const x = p.x1 / srcW * canvas.width;
-      const y = p.y1 / srcH * canvas.height;
-      const w = (p.x2 - p.x1) / srcW * canvas.width;
-      const h = (p.y2 - p.y1) / srcH * canvas.height;
-      ctx.strokeStyle = p.is_light ? '#22c55e' : '#ef4444';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, w, h);
+    octx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+    if (!latestRecognition) return;
+
+    const srcW = latestRecognition.frame_width || frameCanvas.width || 1;
+    const srcH = latestRecognition.frame_height || frameCanvas.height || 1;
+
+    for (const p of latestRecognition.points || []) {
+      const x = p.x1 / srcW * overlayCanvas.width;
+      const y = p.y1 / srcH * overlayCanvas.height;
+      const w = (p.x2 - p.x1) / srcW * overlayCanvas.width;
+      const h = (p.y2 - p.y1) / srcH * overlayCanvas.height;
+      octx.strokeStyle = p.is_light ? '#22c55e' : '#ef4444';
+      octx.lineWidth = 1;
+      octx.strokeRect(x, y, w, h);
     }
   }
 
-  async function poll() {
+  async function pollFrame() {
     try {
-      const resp = await fetch(`/api/video/${videoId}/recognition`);
-      if (resp.ok) {
-        const data = await resp.json();
-        draw(data);
-      }
+      const resp = await fetch(`/api/video/${videoId}/frame`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      if (!frameCanvas.width) syncSize(data.width, data.height);
+
+      const img = new Image();
+      img.src = `data:image/jpeg;base64,${data.image}`;
+      await img.decode();
+      latestFrame = img;
+      redraw();
     } catch (_e) {
       // ignore
     }
   }
 
-  img.addEventListener('load', syncSize);
-  window.addEventListener('resize', syncSize);
-  syncSize();
-  setInterval(poll, 250);
+  async function pollRecognition() {
+    try {
+      const resp = await fetch(`/api/video/${videoId}/recognition`);
+      if (!resp.ok) return;
+      latestRecognition = await resp.json();
+      redraw();
+    } catch (_e) {
+      // ignore
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (frameCanvas.width && frameCanvas.height) syncSize(frameCanvas.width, frameCanvas.height);
+    redraw();
+  });
+
+  setInterval(pollFrame, 250);
+  setInterval(pollRecognition, 250);
+  pollFrame();
+  pollRecognition();
 })();

@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 import cv2
+import numpy as np
 import yaml
 from flask import Flask, Response, jsonify, render_template, request
 
@@ -125,8 +126,18 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
     meta = payload.get("meta", {})
     video.video_id = str(meta.get("video_id", ""))
     video.add_type = str(meta.get("add_type", ""))
-    data_to_save["id"] = str(meta.get("id", video.id))
+    video.id = str(meta.get("id", video.id))
+    video.video_type = str(meta.get("video_type", ""))
+    video.video_url = str(meta.get("video_url", ""))
 
+    # 同步更新运行时 HSV 参数，保证后台识别立即使用最新配置
+    try:
+        video.hsv_lower = np.array([video.hsv_range["h_min"], video.hsv_range["s_min"], video.hsv_range["v_min"]], dtype=np.uint8)
+        video.hsv_upper = np.array([video.hsv_range["h_max"], video.hsv_range["s_max"], video.hsv_range["v_max"]], dtype=np.uint8)
+    except Exception:
+        pass
+
+    data_to_save["id"] = video.id
     data_to_save["yarn"] = yarn_data
     data_to_save["laser_emitter"] = laser_emitter_data
     data_to_save["laser_wall"] = laser_wall_data
