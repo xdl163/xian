@@ -4,18 +4,19 @@
   const fctx = frameCanvas.getContext('2d');
   const octx = overlayCanvas.getContext('2d');
   const previewTitle = document.getElementById('previewTitle');
-  const settingsMsg = document.getElementById('settingsMsg');
   const drawToggle = document.getElementById('toggleDraw');
+  const homeMsg = document.getElementById('homeMsg');
 
-  let currentVideoId = window.INIT_VIDEO_ID;
+  let currentVideoId = Number(window.INIT_VIDEO_ID || -1);
   let latestFrame = null;
   let latestRecognition = null;
 
   const recorders = new Map();
+  const AUTO_DOWNLOAD_MS = 10 * 60 * 1000;
 
   function setMsg(text, err = false) {
-    settingsMsg.textContent = text;
-    settingsMsg.style.color = err ? '#f87171' : '#9ca3af';
+    homeMsg.textContent = text;
+    homeMsg.style.color = err ? '#f87171' : '#9ca3af';
   }
 
   function syncSize(width, height) {
@@ -28,6 +29,14 @@
     frameCanvas.style.height = 'auto';
     overlayCanvas.style.width = '100%';
     overlayCanvas.style.height = '100%';
+  }
+
+  function setActiveId() {
+    document.querySelectorAll('#videoTable tbody tr').forEach((tr) => {
+      const id = Number(tr.dataset.id);
+      tr.classList.toggle('active-row', id === currentVideoId);
+    });
+    previewTitle.textContent = currentVideoId > 0 ? `预览 ${currentVideoId}` : '预览';
   }
 
   function redraw() {
@@ -51,24 +60,26 @@
     }
   }
 
-  async function pollFrame() {
+  async function fetchFrame(videoId) {
+    const resp = await fetch(`/api/video/${videoId}/frame`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const img = new Image();
+    img.src = `data:image/png;base64,${data.image}`;
+    await img.decode();
+    return { ...data, img };
+  }
+
+  async function pollPreview() {
     if (currentVideoId < 0) return;
     try {
-      const resp = await fetch(`/api/video/${currentVideoId}/frame`);
-      if (!resp.ok) return;
-      const data = await resp.json();
+      const data = await fetchFrame(currentVideoId);
+      if (!data) return;
       if (frameCanvas.width !== data.width || frameCanvas.height !== data.height) {
         syncSize(data.width, data.height);
       }
-      const img = new Image();
-      img.src = `data:image/png;base64,${data.image}`;
-      await img.decode();
-      latestFrame = img;
+      latestFrame = data.img;
       redraw();
-
-      for (const rec of recorders.values()) {
-        if (rec && rec.pushFrame) rec.pushFrame(img, data.width, data.height);
-      }
     } catch (_e) {}
   }
 
@@ -82,72 +93,99 @@
     } catch (_e) {}
   }
 
-  async function loadSettings() {
-    const data = await (await fetch('/api/settings')).json();
-    ['save', 'save_csv', 'save_img'].forEach((k) => { document.getElementById(k).checked = !!data[k]; });
-    ['db_save_day', 'error_win', 'correct_win', 'BUF_SIZE', 'HISTORY_LEN'].forEach((k) => { document.getElementById(k).value = data[k]; });
-  }
-
-  function readSettings() {
-    return {
-      save: document.getElementById('save').checked,
-      save_csv: document.getElementById('save_csv').checked,
-      save_img: document.getElementById('save_img').checked,
-      db_save_day: +document.getElementById('db_save_day').value,
-      error_win: +document.getElementById('error_win').value,
-      correct_win: +document.getElementById('correct_win').value,
-      BUF_SIZE: +document.getElementById('BUF_SIZE').value,
-      HISTORY_LEN: +document.getElementById('HISTORY_LEN').value,
-    };
-  }
-
-  function createRecorder(videoId) {
-    const cvs = document.createElement('canvas');
-    const cctx = cvs.getContext('2d');
-    const stream = cvs.captureStream(6);
-    const chunks = [];
-    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `video_${videoId}_${Date.now()}.webm`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    };
-    mediaRecorder.start();
-
-    return {
-      mediaRecorder,
-      pushFrame: (img, w, h) => {
-        if (!w || !h) return;
-        if (cvs.width !== w || cvs.height !== h) {
-          cvs.width = w;
-          cvs.height = h;
-        }
-        cctx.drawImage(img, 0, 0, w, h);
-      },
-    };
-  }
-
-  async function gotoAnnotate(videoId) {
-    let password = localStorage.getItem('annotate_password') || '';
-    if (!password) password = prompt('请输入标注密码') || '';
+  async function verifyAndOpen(path) {
+    const password = prompt('请输入密码');
     if (!password) return;
-
     const vr = await fetch('/api/verify-password', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
     });
     const vd = await vr.json();
     if (!vd.ok) {
       alert('密码错误');
-      localStorage.removeItem('annotate_password');
       return;
     }
-    localStorage.setItem('annotate_password', password);
-    location.href = `/annotate/${videoId}`;
+    window.location.href = `${path}?password=${encodeURIComponent(password)}`;
   }
+
+  function flushRecorder(rec, force = false) {
+    if (!rec.chunks.length) return;
+    if (!force && rec.chunks.length < 2) return;
+    const blob = new Blob(rec.chunks, { type: 'video/webm' });
+    rec.chunks = [];
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `video_${rec.videoId}_${Date.now()}.webm`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  function startRecording(videoId, btn) {
+    const cvs = document.createElement('canvas');
+    const cctx = cvs.getContext('2d');
+    const stream = cvs.captureStream(5);
+    const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    const rec = {
+      videoId,
+      chunks: [],
+      mediaRecorder,
+      frameTimer: null,
+      chunkTimer: null,
+      flushTimer: null,
+      active: true,
+    };
+
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) rec.chunks.push(e.data);
+    };
+
+    mediaRecorder.start(1000);
+
+    rec.chunkTimer = setInterval(() => {
+      if (mediaRecorder.state === 'recording') mediaRecorder.requestData();
+    }, 1000);
+
+    rec.flushTimer = setInterval(() => {
+      flushRecorder(rec, true);
+      setMsg(`录制 ${videoId} 自动分片下载（10分钟）`);
+    }, AUTO_DOWNLOAD_MS);
+
+    rec.frameTimer = setInterval(async () => {
+      if (!rec.active) return;
+      try {
+        const data = await fetchFrame(videoId);
+        if (!data) return;
+        if (cvs.width !== data.width || cvs.height !== data.height) {
+          cvs.width = data.width;
+          cvs.height = data.height;
+        }
+        cctx.drawImage(data.img, 0, 0, cvs.width, cvs.height);
+      } catch (_e) {}
+    }, 250);
+
+    recorders.set(videoId, rec);
+    btn.textContent = '结束录制';
+  }
+
+  function stopRecording(videoId, btn) {
+    const rec = recorders.get(videoId);
+    if (!rec) return;
+    rec.active = false;
+    clearInterval(rec.frameTimer);
+    clearInterval(rec.chunkTimer);
+    clearInterval(rec.flushTimer);
+
+    if (rec.mediaRecorder.state === 'recording') {
+      rec.mediaRecorder.requestData();
+      rec.mediaRecorder.stop();
+    }
+    flushRecorder(rec, true);
+    recorders.delete(videoId);
+    btn.textContent = '开始录制';
+  }
+
+  document.getElementById('openSettingsBtn').addEventListener('click', () => {
+    verifyAndOpen('/settings');
+  });
 
   document.getElementById('videoTable').addEventListener('click', (e) => {
     const id = Number(e.target.dataset.id);
@@ -155,56 +193,37 @@
 
     if (e.target.classList.contains('id-btn')) {
       currentVideoId = id;
-      previewTitle.textContent = `预览 ${id}`;
       latestFrame = null;
       latestRecognition = null;
+      setActiveId();
       return;
     }
 
     if (e.target.classList.contains('annotate-btn')) {
-      gotoAnnotate(id);
+      verifyAndOpen(`/annotate/${id}`);
       return;
     }
 
     if (e.target.classList.contains('record-btn')) {
-      const btn = e.target;
       if (recorders.has(id)) {
-        recorders.get(id).mediaRecorder.stop();
-        recorders.delete(id);
-        btn.textContent = '开始录制';
+        stopRecording(id, e.target);
       } else {
-        recorders.set(id, createRecorder(id));
-        btn.textContent = '结束录制';
+        startRecording(id, e.target);
       }
     }
   });
 
-  document.getElementById('saveSettingsBtn').addEventListener('click', async () => {
-    try {
-      const resp = await fetch('/api/settings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(readSettings()),
-      });
-      setMsg(resp.ok ? '保存成功并已应用' : '保存失败', !resp.ok);
-    } catch (e) {
-      setMsg(`保存失败: ${e}`, true);
-    }
-  });
-
-  document.getElementById('restartBtn').addEventListener('click', async () => {
-    if (!confirm('确认重启后端并重载视频吗？')) return;
-    try {
-      const resp = await fetch('/api/restart', { method: 'POST' });
-      setMsg(resp.ok ? '重启成功' : '重启失败', !resp.ok);
-      if (resp.ok) setTimeout(() => location.reload(), 1000);
-    } catch (e) {
-      setMsg(`重启失败: ${e}`, true);
-    }
-  });
-
   drawToggle.addEventListener('change', redraw);
-  setInterval(pollFrame, 250);
+
+  window.addEventListener('beforeunload', () => {
+    for (const [vid, rec] of recorders.entries()) {
+      const fakeBtn = { textContent: '' };
+      stopRecording(vid, fakeBtn);
+    }
+  });
+  setActiveId();
+  setInterval(pollPreview, 250);
   setInterval(pollRecognition, 250);
-  pollFrame();
+  pollPreview();
   pollRecognition();
-  loadSettings();
 })();

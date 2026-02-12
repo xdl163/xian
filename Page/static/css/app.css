@@ -199,3 +199,11 @@ button:hover { border-color: var(--primary); }
 @media (max-width: 1280px) {
   .home-layout { grid-template-columns: 1fr; }
 }
+
+
+#videoTable tbody tr.active-row td {
+  background: rgba(239, 68, 68, 0.2);
+}
+#videoTable tbody tr.active-row .id-btn {
+  color: #f87171;
+}

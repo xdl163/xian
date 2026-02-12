@@ -247,6 +247,9 @@ def list_videos():
 
 @app.get("/api/settings")
 def get_settings():
+    if not _check_password(request.args.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
     cfg = _read_yaml(settings.config_path)
     return jsonify({
         "save": bool(cfg.get("save", settings.save)),
@@ -263,6 +266,9 @@ def get_settings():
 @app.post("/api/settings")
 def save_settings():
     payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
     cfg = _read_yaml(settings.config_path)
     for k in ["save", "save_csv", "save_img", "db_save_day", "error_win", "correct_win", "BUF_SIZE", "HISTORY_LEN"]:
         if k in payload:
@@ -275,6 +281,10 @@ def save_settings():
 
 @app.post("/api/restart")
 def restart_backend():
+    payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
     with _state_lock:
         _restart_all()
     return jsonify({"ok": True})
@@ -378,6 +388,9 @@ def change_password():
 
 @app.get("/annotate/<int:video_id>")
 def annotate_page(video_id: int):
+    if not _check_password(request.args.get("password", "")):
+        return Response("password error", status=403)
+
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
@@ -387,6 +400,14 @@ def annotate_page(video_id: int):
         frame_width=int(video.frame_width),
         frame_height=int(video.frame_height),
     )
+
+
+@app.get("/settings")
+def settings_page():
+    password = request.args.get("password", "")
+    if not _check_password(password):
+        return Response("password error", status=403)
+    return render_template("settings.html", password=password)
 
 
 def run_web_server(host: str = "0.0.0.0", port: int = 5000):

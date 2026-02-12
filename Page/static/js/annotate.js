@@ -29,7 +29,8 @@
   function $(id) { return document.getElementById(id); }
 
   function getPassword() {
-    return localStorage.getItem('annotate_password') || '';
+    const q = new URLSearchParams(window.location.search);
+    return q.get('password') || '';
   }
 
   function setMsg(text, error = false) {
@@ -405,7 +406,6 @@
       }
       const resp = await fetch(`/api/video/${videoId}/annotation?password=${encodeURIComponent(password)}`);
       if (resp.status === 403) {
-        localStorage.removeItem('annotate_password');
         setMsg('密码失效，请返回重新输入', true);
         setTimeout(() => { window.location.href = '/'; }, 1000);
         return;
