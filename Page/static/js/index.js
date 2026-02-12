@@ -93,18 +93,18 @@
     } catch (_e) {}
   }
 
-  async function verifyAndOpen(path) {
+  async function verifyPassword() {
     const password = prompt('请输入密码');
-    if (!password) return;
+    if (!password) return null;
     const vr = await fetch('/api/verify-password', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password }),
     });
     const vd = await vr.json();
     if (!vd.ok) {
       alert('密码错误');
-      return;
+      return null;
     }
-    window.location.href = `${path}?password=${encodeURIComponent(password)}`;
+    return password;
   }
 
   function flushRecorder(rec, force = false) {
@@ -124,20 +124,11 @@
     const cctx = cvs.getContext('2d');
     const stream = cvs.captureStream(5);
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-    const rec = {
-      videoId,
-      chunks: [],
-      mediaRecorder,
-      frameTimer: null,
-      chunkTimer: null,
-      flushTimer: null,
-      active: true,
-    };
+    const rec = { videoId, chunks: [], mediaRecorder, frameTimer: null, chunkTimer: null, flushTimer: null, active: true };
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) rec.chunks.push(e.data);
     };
-
     mediaRecorder.start(1000);
 
     rec.chunkTimer = setInterval(() => {
@@ -183,9 +174,49 @@
     btn.textContent = '开始录制';
   }
 
-  document.getElementById('openSettingsBtn').addEventListener('click', () => {
-    verifyAndOpen('/settings');
-  });
+  async function openSettingsPage() {
+    const password = await verifyPassword();
+    if (!password) return;
+    window.location.href = `/settings?password=${encodeURIComponent(password)}`;
+  }
+
+  async function openAnnotatePage(videoId) {
+    const password = await verifyPassword();
+    if (!password) return;
+    const drawRecognition = confirm('开始标注：是否绘制识别框？');
+    window.location.href = `/annotate/${videoId}?password=${encodeURIComponent(password)}&draw_recognition=${drawRecognition ? 1 : 0}`;
+  }
+
+  async function addCamera() {
+    const password = await verifyPassword();
+    if (!password) return;
+
+    const video_id = prompt('video_id:'); if (video_id === null) return;
+    const add_type = prompt('add_type:'); if (add_type === null) return;
+    const id = prompt('id:'); if (id === null) return;
+    const video_type = prompt('video_type(默认 http):', 'http'); if (video_type === null) return;
+    const video_url = prompt('video_url:'); if (video_url === null) return;
+
+    try {
+      const resp = await fetch('/api/camera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, video_id, add_type, id, video_type: video_type || 'http', video_url }),
+      });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        setMsg(`添加失败: ${data.error || resp.status}`, true);
+        return;
+      }
+      setMsg('添加摄像头成功，正在刷新...');
+      setTimeout(() => window.location.reload(), 800);
+    } catch (e) {
+      setMsg(`添加失败: ${e}`, true);
+    }
+  }
+
+  document.getElementById('openSettingsBtn').addEventListener('click', openSettingsPage);
+  document.getElementById('addCameraBtn').addEventListener('click', addCamera);
 
   document.getElementById('videoTable').addEventListener('click', (e) => {
     const id = Number(e.target.dataset.id);
@@ -200,27 +231,21 @@
     }
 
     if (e.target.classList.contains('annotate-btn')) {
-      verifyAndOpen(`/annotate/${id}`);
+      openAnnotatePage(id);
       return;
     }
 
     if (e.target.classList.contains('record-btn')) {
-      if (recorders.has(id)) {
-        stopRecording(id, e.target);
-      } else {
-        startRecording(id, e.target);
-      }
+      if (recorders.has(id)) stopRecording(id, e.target);
+      else startRecording(id, e.target);
     }
   });
 
   drawToggle.addEventListener('change', redraw);
-
   window.addEventListener('beforeunload', () => {
-    for (const [vid, rec] of recorders.entries()) {
-      const fakeBtn = { textContent: '' };
-      stopRecording(vid, fakeBtn);
-    }
+    for (const [vid] of recorders.entries()) stopRecording(vid, { textContent: '' });
   });
+
   setActiveId();
   setInterval(pollPreview, 250);
   setInterval(pollRecognition, 250);

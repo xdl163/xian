@@ -58,7 +58,9 @@ def load_config(config_path):
         threshold_thresh=config['threshold_thresh'],
         kernel_ksize=config['kernel_ksize'],
         kernel_ksize2=config['kernel_ksize2'],
-        point_max_size=config['point_max_size']
+        point_max_size=config['point_max_size'],
+        model_threshold=config.get('model_threshold', 0.9),
+        model_path=config.get('model_path', 'model_int8.onnx')
 
     )
 
@@ -77,10 +79,13 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
                     threshold_thresh=5,
                     kernel_ksize=(10, 14),
                     kernel_ksize2=(24, 100),
-                    point_max_size=20
+                    point_max_size=20,
+                    model_threshold=0.9,
+                    model_path="model_int8.onnx"
                    ):
 
     settings.IMAGE_SIZE = IMAGE_SIZE
+    settings.dir_path = dir_path
     settings.HISTORY_LEN = HISTORY_LEN
     settings.crap_w=int(crop_size[0]/2)
     settings.crap_h=int(crop_size[1]/2)
@@ -99,6 +104,8 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     settings.threshold_thresh=threshold_thresh
     settings.kernel_ksize=kernel_ksize
     settings.kernel_ksize2=kernel_ksize2
+    settings.model_threshold = float(model_threshold)
+    settings.model_path = str(model_path)
 
     settings.save=save
     settings.save_csv=save_csv

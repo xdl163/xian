@@ -18,6 +18,7 @@
       correct_win: +document.getElementById('correct_win').value,
       BUF_SIZE: +document.getElementById('BUF_SIZE').value,
       HISTORY_LEN: +document.getElementById('HISTORY_LEN').value,
+      model_threshold: +document.getElementById('model_threshold').value,
     };
   }
 
@@ -29,7 +30,7 @@
     }
     const data = await resp.json();
     ['save', 'save_csv', 'save_img'].forEach((k) => { document.getElementById(k).checked = !!data[k]; });
-    ['db_save_day', 'error_win', 'correct_win', 'BUF_SIZE', 'HISTORY_LEN'].forEach((k) => { document.getElementById(k).value = data[k]; });
+    ['db_save_day', 'error_win', 'correct_win', 'BUF_SIZE', 'HISTORY_LEN', 'model_threshold'].forEach((k) => { document.getElementById(k).value = data[k]; });
   }
 
   document.getElementById('saveBtn').addEventListener('click', async () => {
@@ -40,6 +41,25 @@
       setMsg(resp.ok ? '保存成功并已应用' : '保存失败', !resp.ok);
     } catch (e) {
       setMsg(`保存失败: ${e}`, true);
+    }
+  });
+
+  document.getElementById('uploadModelBtn').addEventListener('click', async () => {
+    const input = document.getElementById('modelFile');
+    if (!input.files || !input.files[0]) {
+      setMsg('请先选择模型文件', true);
+      return;
+    }
+    const fd = new FormData();
+    fd.append('password', password);
+    fd.append('model_file', input.files[0]);
+
+    try {
+      const resp = await fetch('/api/model/upload', { method: 'POST', body: fd });
+      const data = await resp.json().catch(() => ({}));
+      setMsg(resp.ok ? `模型上传成功：${data.model_path || ''}` : `上传失败：${data.error || resp.status}`, !resp.ok);
+    } catch (e) {
+      setMsg(`上传失败: ${e}`, true);
     }
   });
 

@@ -1,5 +1,7 @@
 (() => {
   const { videoId, frameWidth, frameHeight } = window.APP_CONFIG;
+  const query = new URLSearchParams(window.location.search);
+  const DRAW_RECOGNITION = query.get('draw_recognition') === '1';
 
   let annotations = [];
   let selected = -1;
@@ -13,7 +15,9 @@
   let liveMode = true;
   let showFrameIndex = 0;
   let pollTimer = null;
+  let recPollTimer = null;
   const frameCache = new Map();
+  let latestRecognition = null;
 
   const canvas = document.getElementById('frameCanvas');
   const ctx = canvas.getContext('2d');
@@ -51,6 +55,20 @@
       if (frame) {
         const img = frameCache.get(frame.ts);
         if (img) ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    if (DRAW_RECOGNITION && latestRecognition) {
+      const srcW = latestRecognition.frame_width || frameWidth || 1;
+      const srcH = latestRecognition.frame_height || frameHeight || 1;
+      for (const p of latestRecognition.points || []) {
+        const x = p.x1 / srcW * canvas.width;
+        const y = p.y1 / srcH * canvas.height;
+        const w = (p.x2 - p.x1) / srcW * canvas.width;
+        const h = (p.y2 - p.y1) / srcH * canvas.height;
+        ctx.strokeStyle = p.is_light ? '#38bdf8' : '#f59e0b';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
       }
     }
 
@@ -242,10 +260,23 @@
     }
   }
 
+  async function fetchRecognition() {
+    if (!DRAW_RECOGNITION) return;
+    try {
+      const resp = await fetch(`/api/video/${videoId}/recognition`);
+      if (!resp.ok) return;
+      latestRecognition = await resp.json();
+      drawFrameAndAnnotations();
+    } catch (_e) {}
+  }
+
   function startFramePolling() {
     if (pollTimer) clearInterval(pollTimer);
+    if (recPollTimer) clearInterval(recPollTimer);
     pollTimer = setInterval(fetchFrame, 350);
+    if (DRAW_RECOGNITION) recPollTimer = setInterval(fetchRecognition, 350);
     fetchFrame();
+    fetchRecognition();
   }
 
   function fitCanvasToPage() {
@@ -264,6 +295,10 @@
     if (pollTimer) {
       clearInterval(pollTimer);
       pollTimer = null;
+    }
+    if (recPollTimer) {
+      clearInterval(recPollTimer);
+      recPollTimer = null;
     }
     frameBuffer = [];
     frameCache.clear();

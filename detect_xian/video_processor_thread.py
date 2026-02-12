@@ -207,7 +207,7 @@ class VideoProcessorThread(threading.Thread):
                     # 批量推理：返回 [0/1]，1=light
                     if patches:
                         print(video.id)
-                        pred_list = img_cls_onnx(patches, threshold=0.9,verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
+                        pred_list = img_cls_onnx(patches, threshold=float(getattr(settings, "model_threshold", 0.9)), verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
                         for k, i in enumerate(idx_map):
                             hit_model[i] = (pred_list[k] == 1)
 

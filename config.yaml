@@ -33,3 +33,6 @@ kernel_ksize: [30, 40]
 kernel_ksize2: [40, 100]
 
 
+
+model_threshold: 0.9  # 模型预测阈值
+model_path: "model_int8.onnx"  # 项目根目录下模型文件
