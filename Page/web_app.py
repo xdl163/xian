@@ -105,10 +105,10 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
         x, y = item.get("coords", [0, 0])
         x = max(0, min(int(x), width - 1))
         y = max(0, min(int(y), height - 1))
-        x1 = max(x - settings.crap_w * 2, 0)
-        y1 = max(y - settings.crap_h * 2, 0)
-        x2 = min(x + settings.crap_w * 2, width - 1)
-        y2 = min(y + settings.crap_h * 2, height - 1)
+        x1 = max(x - settings.crap_w, 0)
+        y1 = max(y - settings.crap_h, 0)
+        x2 = min(x + settings.crap_w, width - 1)
+        y2 = min(y + settings.crap_h, height - 1)
 
         if item.get("type") == "yarn":
             ann_id = str(item.get("id", ""))
