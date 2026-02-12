@@ -84,7 +84,7 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     settings.HISTORY_LEN = HISTORY_LEN
     settings.crap_w=int(crop_size[0]/2)
     settings.crap_h=int(crop_size[1]/2)
-    settings._BUF_SIZE=BUF_SIZE
+    settings.BUF_SIZE=BUF_SIZE
 
     settings.db_host = db_host
     settings.db_port = db_port

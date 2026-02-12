@@ -9,29 +9,55 @@
 <body>
   <main class="container">
     <h2>断线检测（Web）</h2>
+    <section class="home-layout">
+      <div class="panel">
+        <h3 id="previewTitle">预览</h3>
+        <div class="preview-box preview-stage">
+          <canvas id="previewFrameCanvas" class="preview-canvas"></canvas>
+          <canvas id="previewOverlay"></canvas>
+        </div>
+      </div>
 
-    <table class="table">
-      <thead>
-      <tr>
-        <th>id</th>
-        <th>video_id</th>
-        <th>add_type（区域）</th>
-        <th>预览</th>
-        <th>标注</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% for video in videos %}
-      <tr>
-        <td>{{ video.id }}</td>
-        <td>{{ video.video_id if video.video_id is not none else '' }}</td>
-        <td>{{ video.add_type if video.add_type is not none else '' }}</td>
-        <td><a class="btn-link" href="{{ url_for('preview_page', video_id=video.id) }}">预览</a></td>
-        <td><a class="btn-link" href="{{ url_for('annotate_page', video_id=video.id) }}">标注</a></td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+      <aside>
+        <section class="panel">
+          <h3>视频列表</h3>
+          <label class="inline-check"><input id="toggleDraw" type="checkbox" checked /> 绘制识别框</label>
+          <table class="table" id="videoTable">
+            <thead><tr><th>id</th><th>标注</th><th>录制</th></tr></thead>
+            <tbody>
+            {% for video in videos %}
+              <tr data-id="{{ video.id }}">
+                <td><button class="btn-link id-btn" data-id="{{ video.id }}">{{ video.id }} | {{ video.video_id if video.video_id is not none else '' }} | {{ video.add_type if video.add_type is not none else '' }}</button></td>
+                <td><button class="annotate-btn" data-id="{{ video.id }}">标注</button></td>
+                <td><button class="record-btn" data-id="{{ video.id }}">开始录制</button></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+        </section>
+
+        <section class="panel">
+          <h3>设置</h3>
+          <div class="settings-grid">
+            <label><input id="save" type="checkbox" /> 保存每一帧识别结果</label>
+            <label><input id="save_csv" type="checkbox" /> CSV格式保存一帧识别结果</label>
+            <label><input id="save_img" type="checkbox" /> 日志保存图片</label>
+            <label>日志保存天数 <input id="db_save_day" type="number" min="1" /></label>
+            <label>连续结果一致数量（断） <input id="error_win" type="number" min="1" /></label>
+            <label>连续结果一致数量（亮） <input id="correct_win" type="number" min="1" /></label>
+            <label>BUF_SIZE <input id="BUF_SIZE" type="number" min="1" /></label>
+            <label>HISTORY_LEN <input id="HISTORY_LEN" type="number" min="1" /></label>
+          </div>
+          <div class="btn-row">
+            <button id="saveSettingsBtn" type="button">保存</button>
+            <button id="restartBtn" type="button">重启</button>
+            <span id="settingsMsg" class="tip"></span>
+          </div>
+        </section>
+      </aside>
+    </section>
   </main>
+  <script>window.INIT_VIDEO_ID = {{ videos[0].id if videos else -1 }};</script>
+  <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>
 </html>

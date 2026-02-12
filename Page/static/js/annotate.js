@@ -28,6 +28,10 @@
 
   function $(id) { return document.getElementById(id); }
 
+  function getPassword() {
+    return localStorage.getItem('annotate_password') || '';
+  }
+
   function setMsg(text, error = false) {
     msg.textContent = text;
     msg.style.color = error ? '#f87171' : '#9ca3af';
@@ -377,7 +381,7 @@
         const resp = await fetch(`/api/video/${videoId}/annotation`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ meta: readMeta(), annotations }),
+          body: JSON.stringify({ password: getPassword(), meta: readMeta(), annotations }),
         });
         if (resp.ok) {
           setMsg('保存成功');
@@ -393,7 +397,20 @@
 
   async function init() {
     try {
-      const data = await (await fetch(`/api/video/${videoId}/annotation`)).json();
+      const password = getPassword();
+      if (!password) {
+        setMsg('未登录标注密码', true);
+        setTimeout(() => { window.location.href = '/'; }, 800);
+        return;
+      }
+      const resp = await fetch(`/api/video/${videoId}/annotation?password=${encodeURIComponent(password)}`);
+      if (resp.status === 403) {
+        localStorage.removeItem('annotate_password');
+        setMsg('密码失效，请返回重新输入', true);
+        setTimeout(() => { window.location.href = '/'; }, 1000);
+        return;
+      }
+      const data = await resp.json();
       annotations = data.annotations || [];
       fillMeta(data.meta || {});
       bindEvents();
