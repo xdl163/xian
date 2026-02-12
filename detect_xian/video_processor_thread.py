@@ -73,8 +73,8 @@ class VideoProcessorThread(threading.Thread):
 
 
     def run(self):
-        zero_nums_diffs=[]
-        csv_path = "../zero_diff_log.csv"
+        # zero_nums_diffs=[]
+        # csv_path = "../zero_diff_log.csv"
         num = 0
 
         while self._running:
@@ -96,13 +96,13 @@ class VideoProcessorThread(threading.Thread):
                         continue
 
                     
-                    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
+                    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
 
                     frame = video.next_frame()
                     if frame is None:           # 无帧
                         frame_null_num += 1
                         continue
-                    frame_clean=frame.copy()
+                    # frame_clean=frame.copy()
 
 
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
@@ -173,7 +173,7 @@ class VideoProcessorThread(threading.Thread):
                         video._pass_mask       = np.empty(n, dtype=bool)
                         video.white_num        = np.zeros(n, dtype=np.uint16)
 
-                    n = len(video.xian_points)
+                    # n = len(video.xian_points)
 
                     # 将 boxes 转到 ROI 内部坐标（保留你的做法）
                     roi_boxes = boxes.copy()
@@ -207,7 +207,7 @@ class VideoProcessorThread(threading.Thread):
                     # 批量推理：返回 [0/1]，1=light
                     if patches:
                         print(video.id)
-                        pred_list = img_cls_onnx(patches, threshold=0.9,verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
+                        pred_list = img_cls_onnx(patches, threshold=float(getattr(settings, "model_threshold", 0.9)), verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
                         for k, i in enumerate(idx_map):
                             hit_model[i] = (pred_list[k] == 1)
 
@@ -240,15 +240,16 @@ class VideoProcessorThread(threading.Thread):
                                         ((err == 1) | (err == settings.ERROR_WIN) |
                                          (cor == 1) | (cor == settings.CORRECT_WIN)))[0]
 
-
-                    if need_chk.size and self.detect_errors(video, frame, mast=True):
+                    # print(video.id,need_chk)
+                    if need_chk.size and len(self.detect_errors(video, frame, mast=True))!=0:
+                        print('异常失败')
                         err[need_chk] = 0
                         fail_raw[need_chk] = False
                     # 断线 / 恢复亮
-                    broke_idx = np.where(np.logical_and((err == settings.ERROR_WIN),  lit))[0]
+                    broke_idx = np.where(np.logical_and((err >= settings.ERROR_WIN),  lit))[0]
                     light_idx = np.where(
                         np.logical_and.reduce((
-                            cor == settings.CORRECT_WIN,
+                            cor >= settings.CORRECT_WIN,
                             ~lit,
                             video.xian_allow_light
                         ))
@@ -260,11 +261,11 @@ class VideoProcessorThread(threading.Thread):
                             ~video.xian_allow_light
                         ))
                     )[0]
-
+                    # print(light_idx,light_piao_idx,video.xian_allow_light)
                     # 更新持久状态
                     lit[broke_idx] = False
                     lit[light_idx] = True
-                    video.xian_allow_light[broke_idx] = False
+                    # video.xian_allow_light[broke_idx] = False
                     cor[broke_idx] = 0
                     cor[light_piao_idx]=0
                     err[light_idx] = 0

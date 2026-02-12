@@ -2,15 +2,21 @@ import base64
 import hashlib
 import threading
 import time
+from collections import deque
+from pathlib import Path
 from typing import Any
 
 import cv2
 import numpy as np
 import yaml
 from flask import Flask, Response, jsonify, render_template, request
+from werkzeug.utils import secure_filename
 
 import settings
-
+from Utils import load_config
+from detect_xian import VideoProcessorThread
+from light_cls.light_cls import reload_model
+from Page import load_video_yaml
 
 app = Flask(__name__)
 _state_lock = threading.Lock()
@@ -29,6 +35,10 @@ def _read_yaml(path: str) -> dict[str, Any]:
             return yaml.safe_load(f) or {}
     except Exception:
         return {}
+
+
+def _check_password(raw_password: str) -> bool:
+    return hashlib.sha256(str(raw_password).encode("utf-8")).hexdigest() == settings.passwd
 
 
 def _annotation_from_yaml(video):
@@ -130,7 +140,6 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
     video.video_type = str(meta.get("video_type", ""))
     video.video_url = str(meta.get("video_url", ""))
 
-    # 同步更新运行时 HSV 参数，保证后台识别立即使用最新配置
     try:
         video.hsv_lower = np.array([video.hsv_range["h_min"], video.hsv_range["s_min"], video.hsv_range["v_min"]], dtype=np.uint8)
         video.hsv_upper = np.array([video.hsv_range["h_max"], video.hsv_range["s_max"], video.hsv_range["v_max"]], dtype=np.uint8)
@@ -178,25 +187,207 @@ def _recognition_payload(video):
     }
 
 
-def _stream_generator(video):
-    while True:
-        frame = getattr(video, "this_frame", None)
-        if frame is None:
-            time.sleep(0.2)
-            continue
+def _apply_runtime_from_config(config: dict[str, Any]) -> None:
+    settings.save = bool(config.get("save", settings.save))
+    settings.save_csv = bool(config.get("save_csv", settings.save_csv))
+    settings.save_img = bool(config.get("save_img", settings.save_img))
+    settings.db_save_day = int(config.get("db_save_day", settings.db_save_day))
+    settings.ERROR_WIN = int(config.get("error_win", settings.ERROR_WIN))
+    settings.CORRECT_WIN = int(config.get("correct_win", settings.CORRECT_WIN))
+    settings.BUF_SIZE = int(config.get("BUF_SIZE", settings.BUF_SIZE))
+    settings.HISTORY_LEN = int(config.get("HISTORY_LEN", settings.HISTORY_LEN))
+    settings.model_threshold = float(config.get("model_threshold", getattr(settings, "model_threshold", 0.9)))
+    settings.model_path = str(config.get("model_path", getattr(settings, "model_path", "model_int8.onnx")))
 
-        ok, buf = cv2.imencode(".jpg", frame)
-        if not ok:
-            time.sleep(0.05)
-            continue
+    for video in settings.video_list:
+        old_hist = list(getattr(video, "history_queue", []))
+        video.history_queue = deque(old_hist[-settings.HISTORY_LEN:], maxlen=settings.HISTORY_LEN)
+        if hasattr(video, "_buf_lock") and hasattr(video, "_frame_buffer"):
+            with video._buf_lock:
+                old_buf = list(video._frame_buffer)
+                video._frame_buffer = deque(old_buf[-settings.BUF_SIZE:], maxlen=settings.BUF_SIZE)
 
-        yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
-        time.sleep(0.15)
+
+def _restart_all() -> None:
+    if settings.video_thread is not None:
+        settings.video_thread.stop()
+        settings.video_thread.join(timeout=2)
+        settings.video_thread = None
+
+    for video in settings.video_list:
+        try:
+            video.stop()
+        except Exception:
+            pass
+
+    if getattr(settings, "modbusServer", None) is not None:
+        try:
+            settings.modbusServer.stop()
+        except Exception:
+            pass
+
+    settings.video_list = []
+    load_config(settings.config_path)
+    settings.video_thread = VideoProcessorThread(settings.video_list, window=None)
+    settings.video_thread.start()
 
 
 @app.get("/")
 def index():
     return render_template("index.html", videos=settings.video_list)
+
+
+@app.get("/api/videos")
+def list_videos():
+    rows = []
+    for video in settings.video_list:
+        rows.append({
+            "id": int(video.id),
+            "video_id": str(getattr(video, "video_id", "") or ""),
+            "add_type": str(getattr(video, "add_type", "") or ""),
+        })
+    return jsonify({"videos": rows})
+
+
+@app.get("/api/settings")
+def get_settings():
+    if not _check_password(request.args.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    cfg = _read_yaml(settings.config_path)
+    return jsonify({
+        "save": bool(cfg.get("save", settings.save)),
+        "save_csv": bool(cfg.get("save_csv", settings.save_csv)),
+        "save_img": bool(cfg.get("save_img", settings.save_img)),
+        "db_save_day": int(cfg.get("db_save_day", settings.db_save_day)),
+        "error_win": int(cfg.get("error_win", settings.ERROR_WIN)),
+        "correct_win": int(cfg.get("correct_win", settings.CORRECT_WIN)),
+        "BUF_SIZE": int(cfg.get("BUF_SIZE", settings.BUF_SIZE)),
+        "HISTORY_LEN": int(cfg.get("HISTORY_LEN", settings.HISTORY_LEN)),
+        "model_threshold": float(cfg.get("model_threshold", getattr(settings, "model_threshold", 0.9))),
+        "model_path": str(cfg.get("model_path", getattr(settings, "model_path", "model_int8.onnx"))),
+    })
+
+
+@app.post("/api/settings")
+def save_settings():
+    payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    cfg = _read_yaml(settings.config_path)
+    for k in ["save", "save_csv", "save_img", "db_save_day", "error_win", "correct_win", "BUF_SIZE", "HISTORY_LEN", "model_threshold", "model_path"]:
+        if k in payload:
+            cfg[k] = payload[k]
+    with open(settings.config_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    _apply_runtime_from_config(cfg)
+    try:
+        reload_model(settings.model_path)
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.post("/api/restart")
+def restart_backend():
+    payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    with _state_lock:
+        _restart_all()
+    return jsonify({"ok": True})
+
+
+@app.post("/api/model/upload")
+def upload_model():
+    password = request.form.get("password", "")
+    if not _check_password(password):
+        return jsonify({"error": "password_error"}), 403
+
+    if "model_file" not in request.files:
+        return jsonify({"error": "no_file"}), 400
+
+    file = request.files["model_file"]
+    if not file or not file.filename:
+        return jsonify({"error": "empty_file"}), 400
+
+    cfg = _read_yaml(settings.config_path)
+    model_name = str(cfg.get("model_path", getattr(settings, "model_path", "model_int8.onnx")))
+    if not model_name:
+        model_name = secure_filename(file.filename)
+
+    target_path = Path(__file__).resolve().parent.parent / model_name
+    file.save(target_path)
+
+    cfg["model_path"] = model_name
+    with open(settings.config_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+
+    reload_model(model_name)
+    settings.model_path = model_name
+    return jsonify({"ok": True, "model_path": model_name})
+
+
+@app.post("/api/camera")
+def add_camera():
+    payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    vid = str(payload.get("id", "")).strip()
+    if not vid:
+        return jsonify({"error": "id_required"}), 400
+
+    try:
+        vid_int = int(vid)
+    except ValueError:
+        return jsonify({"error": "id_must_be_int"}), 400
+
+    if _video_by_id(vid_int) is not None:
+        return jsonify({"error": "id_exists"}), 400
+
+    video_type = str(payload.get("video_type", "http") or "http").strip()
+    video_url = str(payload.get("video_url", "")).strip()
+    if not video_url:
+        return jsonify({"error": "video_url_required"}), 400
+
+    camera_yaml = {
+        "video_id": str(payload.get("video_id", "")),
+        "add_type": str(payload.get("add_type", "")),
+        "id": vid,
+        "video_type": video_type,
+        "video_url": video_url,
+        "hsv_range": {"h_min": 0, "h_max": 179, "s_min": 0, "s_max": 255, "v_min": 178, "v_max": 255},
+        "yarn": {},
+        "laser_emitter": [],
+        "laser_wall": [],
+    }
+
+    yaml_dir = Path(getattr(settings, "dir_path", "") or "")
+    if not yaml_dir:
+        cfg = _read_yaml(settings.config_path)
+        yaml_dir = Path(cfg.get("video_path", ""))
+    yaml_dir.mkdir(parents=True, exist_ok=True)
+
+    yaml_path = yaml_dir / f"{vid}.yaml"
+    with open(yaml_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(camera_yaml, f, allow_unicode=True, sort_keys=False)
+
+    video = load_video_yaml(str(yaml_path))
+    if not video:
+        return jsonify({"error": "load_video_failed"}), 500
+
+    with _state_lock:
+        settings.video_list.append(video)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/verify-password")
+def verify_password():
+    payload = request.get_json(force=True, silent=True) or {}
+    return jsonify({"ok": _check_password(payload.get("password", ""))})
 
 
 @app.get("/preview/<int:video_id>")
@@ -211,15 +402,21 @@ def stream(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
-    return Response(_stream_generator(video), mimetype="multipart/x-mixed-replace; boundary=frame")
 
+    def _stream_generator():
+        while True:
+            frame = getattr(video, "this_frame", None)
+            if frame is None:
+                time.sleep(0.2)
+                continue
+            ok, buf = cv2.imencode(".jpg", frame)
+            if not ok:
+                time.sleep(0.05)
+                continue
+            yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + buf.tobytes() + b"\r\n")
+            time.sleep(0.15)
 
-@app.get("/stream_result/<int:video_id>")
-def stream_result(video_id: int):
-    video = _video_by_id(video_id)
-    if video is None:
-        return Response("not found", status=404)
-    return Response(_stream_generator(video), mimetype="multipart/x-mixed-replace; boundary=frame")
+    return Response(_stream_generator(), mimetype="multipart/x-mixed-replace; boundary=frame")
 
 
 @app.get("/api/video/<int:video_id>/recognition")
@@ -235,16 +432,12 @@ def get_frame(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return jsonify({"error": "not found"}), 404
-
     frame = getattr(video, "this_frame", None)
     if frame is None:
         return jsonify({"error": "no_frame"}), 404
-
-    # 仅做 PNG 编码传输，不做任何 resize/裁剪，避免有损压缩
     ok, buf = cv2.imencode(".png", frame)
     if not ok:
         return jsonify({"error": "encode_failed"}), 500
-
     payload = base64.b64encode(buf.tobytes()).decode("ascii")
     return jsonify({"image": payload, "width": int(frame.shape[1]), "height": int(frame.shape[0]), "ts": time.time()})
 
@@ -254,6 +447,8 @@ def get_annotation(video_id: int):
     video = _video_by_id(video_id)
     if video is None:
         return jsonify({"error": "not found"}), 404
+    if not _check_password(request.args.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
     return jsonify(_annotation_from_yaml(video))
 
 
@@ -263,6 +458,8 @@ def save_annotation(video_id: int):
     if video is None:
         return jsonify({"error": "not found"}), 404
     payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
     with _state_lock:
         _save_annotation(video, payload)
     return jsonify({"ok": True})
@@ -275,11 +472,9 @@ def change_password():
     new_pwd = str(payload.get("new_password", ""))
     if hashlib.sha256(old_pwd.encode("utf-8")).hexdigest() != settings.passwd:
         return jsonify({"ok": False, "message": "原密码错误"}), 400
-
     settings.passwd = hashlib.sha256(new_pwd.encode("utf-8")).hexdigest()
     if settings.license_data:
         from activate import save_license_file
-
         settings.license_data["passwd"] = settings.passwd
         save_license_file(settings.license_data)
     return jsonify({"ok": True})
@@ -287,6 +482,9 @@ def change_password():
 
 @app.get("/annotate/<int:video_id>")
 def annotate_page(video_id: int):
+    if not _check_password(request.args.get("password", "")):
+        return Response("password error", status=403)
+
     video = _video_by_id(video_id)
     if video is None:
         return Response("not found", status=404)
@@ -298,5 +496,15 @@ def annotate_page(video_id: int):
     )
 
 
+@app.get("/settings")
+def settings_page():
+    password = request.args.get("password", "")
+    if not _check_password(password):
+        return Response("password error", status=403)
+    return render_template("settings.html", password=password)
+
+
 def run_web_server(host: str = "0.0.0.0", port: int = 5000):
+    if settings.config_path is None:
+        settings.config_path = str(Path("config.yaml").resolve())
     app.run(host=host, port=port, threaded=True)

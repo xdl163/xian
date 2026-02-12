@@ -22,6 +22,8 @@ bg_frames=1      #好像没啥用
 csv_name='video_csv.csv'
 point_max_size=20#最大长度
 model_size=40
+model_threshold=0.9
+model_path="model_int8.onnx"
 
 
 label_video_id=-1

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>设置</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="panel" style="max-width:840px;">
+      <h3>设置</h3>
+      <div class="settings-grid">
+        <label><input id="save" type="checkbox" /> 保存每一帧识别结果</label>
+        <label><input id="save_csv" type="checkbox" /> CSV格式保存一帧识别结果</label>
+        <label><input id="save_img" type="checkbox" /> 日志保存图片</label>
+        <label>日志保存天数 <input id="db_save_day" type="number" min="1" /></label>
+        <label>连续结果一致数量（断） <input id="error_win" type="number" min="1" /></label>
+        <label>连续结果一致数量（亮） <input id="correct_win" type="number" min="1" /></label>
+        <label>BUF_SIZE <input id="BUF_SIZE" type="number" min="1" /></label>
+        <label>HISTORY_LEN <input id="HISTORY_LEN" type="number" min="1" /></label>
+        <label>模型阈值 <input id="model_threshold" type="number" step="0.01" min="0" max="1" /></label>
+      </div>
+
+      <div class="panel" style="margin:8px 0;">
+        <h4>模型上传（覆盖项目目录模型文件）</h4>
+        <input id="modelFile" type="file" accept=".pt,.pth,.onnx,.bin" />
+        <button id="uploadModelBtn" type="button">上传并重载模型</button>
+      </div>
+
+      <div class="panel" style="margin:8px 0;">
+        <h4>修改密码</h4>
+        <div class="settings-grid">
+          <label>原密码 <input id="oldPassword" type="password" autocomplete="off" /></label>
+          <label>新密码 <input id="newPassword" type="password" autocomplete="off" /></label>
+        </div>
+        <button id="changePasswordBtn" type="button">修改密码</button>
+      </div>
+
+      <div class="btn-row">
+        <button id="saveBtn" type="button">保存</button>
+        <button id="restartBtn" type="button">重启</button>
+        <a class="btn-link" href="/">返回</a>
+      </div>
+      <p id="msg" class="tip"></p>
+    </section>
+  </main>
+  <script>
+    window.SETTINGS_PASSWORD = {{ password | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+</body>
+</html>

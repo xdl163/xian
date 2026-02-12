@@ -9,29 +9,53 @@
 <body>
   <main class="container">
     <h2>断线检测（Web）</h2>
+    <section class="home-layout">
+      <div class="panel">
+        <h3 id="previewTitle">预览</h3>
+        <div class="preview-box preview-stage">
+          <canvas id="previewFrameCanvas" class="preview-canvas"></canvas>
+          <canvas id="previewOverlay"></canvas>
+        </div>
+      </div>
 
-    <table class="table">
-      <thead>
-      <tr>
-        <th>id</th>
-        <th>video_id</th>
-        <th>add_type（区域）</th>
-        <th>预览</th>
-        <th>标注</th>
-      </tr>
-      </thead>
-      <tbody>
-      {% for video in videos %}
-      <tr>
-        <td>{{ video.id }}</td>
-        <td>{{ video.video_id if video.video_id is not none else '' }}</td>
-        <td>{{ video.add_type if video.add_type is not none else '' }}</td>
-        <td><a class="btn-link" href="{{ url_for('preview_page', video_id=video.id) }}">预览</a></td>
-        <td><a class="btn-link" href="{{ url_for('annotate_page', video_id=video.id) }}">标注</a></td>
-      </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+      <aside>
+        <section class="panel">
+          <div class="btn-row" style="margin-bottom:8px;">
+            <button id="openSettingsBtn" type="button">设置</button>
+            <button id="addCameraBtn" type="button">添加摄像头</button>
+          </div>
+          <h3>摄像头列表</h3>
+          <label class="inline-check"><input id="toggleDraw" type="checkbox" checked /> 绘制识别框</label>
+          <table class="table" id="videoTable">
+            <thead><tr><th>id</th><th>标注</th><th>录制</th></tr></thead>
+            <tbody>
+            {% for video in videos %}
+              <tr data-id="{{ video.id }}">
+                <td><button class="btn-link id-btn" data-id="{{ video.id }}">{{ video.id }} | {{ video.video_id if video.video_id is not none else '' }} | {{ video.add_type if video.add_type is not none else '' }}</button></td>
+                <td><button class="annotate-btn" data-id="{{ video.id }}">标注</button></td>
+                <td><button class="record-btn" data-id="{{ video.id }}">开始录制</button></td>
+              </tr>
+            {% endfor %}
+            </tbody>
+          </table>
+          <p id="homeMsg" class="tip"></p>
+        </section>
+      </aside>
+    </section>
   </main>
+
+  <div id="modalMask" class="modal-mask hidden">
+    <div class="modal-card">
+      <h4 id="modalTitle">标题</h4>
+      <div id="modalBody"></div>
+      <div class="btn-row modal-actions">
+        <button id="modalOkBtn" type="button">确定</button>
+        <button id="modalCancelBtn" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <script>window.INIT_VIDEO_ID = {{ videos[0].id if videos else -1 }};</script>
+  <script src="{{ url_for('static', filename='js/index.js') }}"></script>
 </body>
 </html>
