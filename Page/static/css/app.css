@@ -252,6 +252,14 @@ button:hover { border-color: var(--primary); }
   flex-wrap: wrap;
   margin-bottom: 8px;
 }
+.logs-toolbar-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(180px, 1fr));
+  gap: 8px;
+}
+.logs-toolbar-actions {
+  align-self: end;
+}
 .logs-toolbar label {
   display: flex;
   flex-direction: column;
@@ -273,12 +281,14 @@ button:hover { border-color: var(--primary); }
   white-space: nowrap;
 }
 .log-thumb {
-  width: 120px;
-  height: 68px;
-  object-fit: cover;
+  width: 140px;
+  height: auto;
+  max-height: 100px;
+  object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 6px;
   cursor: zoom-in;
+  background: #020617;
 }
 .image-viewer-card {
   width: min(1200px, calc(100vw - 24px));
@@ -290,4 +300,41 @@ button:hover { border-color: var(--primary); }
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #020617;
+}
+
+.line-dots-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  max-width: 260px;
+  margin-bottom: 3px;
+}
+.line-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.line-dot-ok {
+  background: #22c55e;
+}
+.line-dot-bad {
+  background: #ef4444;
+}
+.line-raw {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+@media (max-width: 1280px) {
+  .logs-toolbar-grid {
+    grid-template-columns: repeat(2, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .logs-toolbar-grid {
+    grid-template-columns: 1fr;
+  }
 }

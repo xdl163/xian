@@ -10,15 +10,48 @@
   <main class="container">
     <section class="panel">
       <div class="btn-row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
-        <h3 style="margin: 0;">事件日志</h3>
-        <div class="btn-row">
-          <button id="backBtn" type="button">返回首页</button>
-        </div>
+        <h3 style="margin: 0;">日志与状态</h3>
+        <button id="backBtn" type="button">返回首页</button>
       </div>
 
-      <div class="logs-toolbar">
+      <h4 style="margin: 0 0 8px;">摄像头状态（实时刷新 1 秒）</h4>
+      <div class="logs-list-wrap" style="margin-bottom: 12px;">
+        <table class="table logs-table" id="statusTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>影像头编号</th>
+              <th>区域</th>
+              <th>IP</th>
+              <th>断线数量</th>
+              <th>线</th>
+              <th>状态</th>
+              <th>更新时间</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 0 0 8px;">日志事件</h4>
+      <div class="logs-toolbar logs-toolbar-grid">
         <label>摄像头ID
-          <input id="cameraIdInput" type="text" placeholder="留空表示全部" />
+          <input id="cameraIdInput" type="text" placeholder="如: 1" />
+        </label>
+        <label>区域
+          <input id="cameraAreaInput" type="text" placeholder="如: 1a" />
+        </label>
+        <label>线号
+          <input id="lineNumberInput" type="number" min="0" placeholder="如: 1" />
+        </label>
+        <label>类型
+          <input id="eventTypeInput" type="text" placeholder="如: duanxian" />
+        </label>
+        <label>开始时间
+          <input id="startTimeInput" type="datetime-local" />
+        </label>
+        <label>结束时间
+          <input id="endTimeInput" type="datetime-local" />
         </label>
         <label>每页条数
           <select id="limitSelect">
@@ -27,8 +60,19 @@
             <option value="50">50</option>
           </select>
         </label>
-        <button id="queryBtn" type="button">查询</button>
-        <button id="refreshBtn" type="button">刷新</button>
+        <label>自动刷新
+          <select id="autoRefreshSelect">
+            <option value="0" selected>关闭</option>
+            <option value="1000">1秒</option>
+            <option value="2000">2秒</option>
+            <option value="5000">5秒</option>
+            <option value="10000">10秒</option>
+          </select>
+        </label>
+        <div class="btn-row logs-toolbar-actions">
+          <button id="queryBtn" type="button">查询</button>
+          <button id="refreshBtn" type="button">刷新</button>
+        </div>
       </div>
 
       <p id="logsMsg" class="tip"></p>

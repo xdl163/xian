@@ -71,6 +71,15 @@ def _read_image_base64_cached(path: str, version: str) -> str | None:
     return payload
 
 
+def _safe_int(value: Any, default: int | None = None) -> int | None:
+    try:
+        if value is None or value == "":
+            return default
+        return int(value)
+    except Exception:
+        return default
+
+
 def _check_password(raw_password: str) -> bool:
     return hashlib.sha256(str(raw_password).encode("utf-8")).hexdigest() == settings.passwd
 
@@ -546,9 +555,14 @@ def logs_page():
 @app.post("/api/logs")
 def get_logs():
     payload = request.get_json(force=True, silent=True) or {}
-    limit = max(1, min(int(payload.get("limit", 20) or 20), 100))
-    offset = max(0, int(payload.get("offset", 0) or 0))
+    limit = max(1, min(_safe_int(payload.get("limit", 20), 20) or 20, 100))
+    offset = max(0, _safe_int(payload.get("offset", 0), 0) or 0)
     camera_id = str(payload.get("camera_id", "")).strip()
+    camera_area = str(payload.get("camera_area", "")).strip()
+    line_number = _safe_int(payload.get("line_number", ""), None)
+    event_type = str(payload.get("event_type", "")).strip()
+    start_time = str(payload.get("start_time", "")).strip()
+    end_time = str(payload.get("end_time", "")).strip()
     cached_images = payload.get("cached_images", {}) or {}
     if not isinstance(cached_images, dict):
         cached_images = {}
@@ -558,11 +572,28 @@ def get_logs():
     if conn is None:
         return jsonify({"total": 0, "rows": [], "error": "db_not_ready"}), 503
 
-    where_sql = ""
-    where_args = []
+    where_sql_parts = []
+    where_args: list[Any] = []
     if camera_id:
-        where_sql = " WHERE camera_id=%s "
+        where_sql_parts.append("camera_id=%s")
         where_args.append(camera_id)
+    if camera_area:
+        where_sql_parts.append("camera_area=%s")
+        where_args.append(camera_area)
+    if line_number is not None:
+        where_sql_parts.append("line_number=%s")
+        where_args.append(line_number)
+    if event_type:
+        where_sql_parts.append("event_type=%s")
+        where_args.append(event_type)
+    if start_time:
+        where_sql_parts.append("time >= %s")
+        where_args.append(start_time)
+    if end_time:
+        where_sql_parts.append("time <= %s")
+        where_args.append(end_time)
+
+    where_sql = f" WHERE {' AND '.join(where_sql_parts)} " if where_sql_parts else ""
 
     rows = []
     total = 0
@@ -608,6 +639,41 @@ def get_logs():
         return jsonify({"total": 0, "rows": [], "error": str(e)}), 500
 
     return jsonify({"total": total, "rows": rows, "limit": limit, "offset": offset})
+
+
+@app.get("/api/logs/status")
+def get_camera_status_rows():
+    db = getattr(settings, "xiandb", None)
+    conn = getattr(db, "connection", None)
+    if conn is None:
+        return jsonify({"rows": [], "error": "db_not_ready"}), 503
+
+    rows = []
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("USE xian;")
+            cursor.execute(
+                "SELECT id, video_id, add_type, ip, duanxian_num, xian_status, status, update_time "
+                "FROM video_info ORDER BY CAST(id AS UNSIGNED) ASC;"
+            )
+            data_rows = cursor.fetchall()
+
+        for row in data_rows:
+            cid, video_id, area, ip, broken_count, xian_status, status, update_time = row
+            rows.append({
+                "id": str(cid or ""),
+                "video_id": _safe_int(video_id, None),
+                "camera_area": str(area or ""),
+                "ip": str(ip or ""),
+                "broken_count": _safe_int(broken_count, 0) or 0,
+                "line_status": str(xian_status or ""),
+                "status": str(status or ""),
+                "update_time": update_time.strftime("%Y-%m-%d %H:%M:%S") if update_time else "",
+            })
+    except Exception as e:
+        return jsonify({"rows": [], "error": str(e)}), 500
+
+    return jsonify({"rows": rows, "ts": time.time()})
 
 
 def run_web_server(host: str = "0.0.0.0", port: int = 5000):
