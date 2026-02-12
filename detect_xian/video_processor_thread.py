@@ -73,8 +73,8 @@ class VideoProcessorThread(threading.Thread):
 
 
     def run(self):
-        zero_nums_diffs=[]
-        csv_path = "../zero_diff_log.csv"
+        # zero_nums_diffs=[]
+        # csv_path = "../zero_diff_log.csv"
         num = 0
 
         while self._running:
@@ -96,13 +96,13 @@ class VideoProcessorThread(threading.Thread):
                         continue
 
                     
-                    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
+                    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
 
                     frame = video.next_frame()
                     if frame is None:           # 无帧
                         frame_null_num += 1
                         continue
-                    frame_clean=frame.copy()
+                    # frame_clean=frame.copy()
 
 
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
@@ -173,7 +173,7 @@ class VideoProcessorThread(threading.Thread):
                         video._pass_mask       = np.empty(n, dtype=bool)
                         video.white_num        = np.zeros(n, dtype=np.uint16)
 
-                    n = len(video.xian_points)
+                    # n = len(video.xian_points)
 
                     # 将 boxes 转到 ROI 内部坐标（保留你的做法）
                     roi_boxes = boxes.copy()
