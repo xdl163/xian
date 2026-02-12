@@ -2,6 +2,7 @@
   const { videoId } = window.PREVIEW_CONFIG;
   const frameCanvas = document.getElementById('previewFrameCanvas');
   const overlayCanvas = document.getElementById('previewOverlay');
+  const downloadBtn = document.getElementById('downloadBtn');
   const fctx = frameCanvas.getContext('2d');
   const octx = overlayCanvas.getContext('2d');
 
@@ -15,15 +16,10 @@
     overlayCanvas.width = width;
     overlayCanvas.height = height;
 
-    const stage = frameCanvas.parentElement;
-    const maxW = stage ? Math.max(320, stage.clientWidth - 2) : width;
-    const viewW = Math.min(width, maxW); // 不放大到原始分辨率以上，避免糊
-    const viewH = Math.round((viewW / width) * height);
-
-    frameCanvas.style.width = `${viewW}px`;
-    frameCanvas.style.height = `${viewH}px`;
-    overlayCanvas.style.width = `${viewW}px`;
-    overlayCanvas.style.height = `${viewH}px`;
+    frameCanvas.style.width = '100%';
+    frameCanvas.style.height = 'auto';
+    overlayCanvas.style.width = frameCanvas.clientWidth ? `${frameCanvas.clientWidth}px` : '100%';
+    overlayCanvas.style.height = frameCanvas.clientHeight ? `${frameCanvas.clientHeight}px` : 'auto';
   }
 
   function redraw() {
@@ -82,6 +78,23 @@
     if (frameCanvas.width && frameCanvas.height) syncSize(frameCanvas.width, frameCanvas.height);
     redraw();
   });
+
+  if (downloadBtn) {
+    downloadBtn.addEventListener('click', () => {
+      if (!frameCanvas.width || !frameCanvas.height) return;
+      const merged = document.createElement('canvas');
+      merged.width = frameCanvas.width;
+      merged.height = frameCanvas.height;
+      const mctx = merged.getContext('2d');
+      mctx.drawImage(frameCanvas, 0, 0);
+      mctx.drawImage(overlayCanvas, 0, 0);
+
+      const a = document.createElement('a');
+      a.href = merged.toDataURL('image/png');
+      a.download = `preview_${videoId}_${Date.now()}.png`;
+      a.click();
+    });
+  }
 
   setInterval(pollFrame, 250);
   setInterval(pollRecognition, 250);

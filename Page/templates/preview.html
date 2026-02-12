@@ -8,7 +8,7 @@
 </head>
 <body>
   <main class="container">
-    <p class="top-actions"><a class="btn-link" href="{{ url_for('index') }}">返回</a></p>
+    <p class="top-actions"><a class="btn-link" href="{{ url_for('index') }}">返回</a> <button id="downloadBtn" type="button">下载当前帧</button></p>
     <h3>预览 {{ video_id }}（前端绘制识别框）</h3>
     <div class="preview-box preview-stage">
       <canvas id="previewFrameCanvas" class="preview-canvas"></canvas>
