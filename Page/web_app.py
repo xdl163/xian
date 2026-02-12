@@ -598,19 +598,27 @@ def get_logs():
     rows = []
     total = 0
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("USE xian;")
-            cursor.execute(f"SELECT COUNT(*) FROM xian_event {where_sql};", tuple(where_args))
-            total = int(cursor.fetchone()[0])
+        conn_lock = getattr(db, "_conn_lock", None)
+        if conn_lock is not None:
+            conn_lock.acquire()
+        try:
+            conn.ping(reconnect=True)
+            with conn.cursor() as cursor:
+                cursor.execute("USE xian;")
+                cursor.execute(f"SELECT COUNT(*) FROM xian_event {where_sql};", tuple(where_args))
+                total = int(cursor.fetchone()[0])
 
-            query_sql = (
-                "SELECT id, time, camera_id, camera_area, line_number, event_type, image_path "
-                f"FROM xian_event {where_sql} "
-                "ORDER BY time DESC LIMIT %s OFFSET %s;"
-            )
-            args = tuple(where_args + [limit, offset])
-            cursor.execute(query_sql, args)
-            data_rows = cursor.fetchall()
+                query_sql = (
+                    "SELECT id, time, camera_id, camera_area, line_number, event_type, image_path "
+                    f"FROM xian_event {where_sql} "
+                    "ORDER BY time DESC LIMIT %s OFFSET %s;"
+                )
+                args = tuple(where_args + [limit, offset])
+                cursor.execute(query_sql, args)
+                data_rows = cursor.fetchall()
+        finally:
+            if conn_lock is not None:
+                conn_lock.release()
 
         for row in data_rows:
             event_id, t, cam_id, cam_area, line_no, event_type, image_path = row
@@ -650,13 +658,21 @@ def get_camera_status_rows():
 
     rows = []
     try:
-        with conn.cursor() as cursor:
-            cursor.execute("USE xian;")
-            cursor.execute(
-                "SELECT id, video_id, add_type, ip, duanxian_num, xian_status, status, update_time "
-                "FROM video_info ORDER BY CAST(id AS UNSIGNED) ASC;"
-            )
-            data_rows = cursor.fetchall()
+        conn_lock = getattr(db, "_conn_lock", None)
+        if conn_lock is not None:
+            conn_lock.acquire()
+        try:
+            conn.ping(reconnect=True)
+            with conn.cursor() as cursor:
+                cursor.execute("USE xian;")
+                cursor.execute(
+                    "SELECT id, video_id, add_type, ip, duanxian_num, xian_status, status, update_time "
+                    "FROM video_info ORDER BY CAST(id AS UNSIGNED) ASC;"
+                )
+                data_rows = cursor.fetchall()
+        finally:
+            if conn_lock is not None:
+                conn_lock.release()
 
         for row in data_rows:
             cid, video_id, area, ip, broken_count, xian_status, status, update_time = row
