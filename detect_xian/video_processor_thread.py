@@ -240,15 +240,16 @@ class VideoProcessorThread(threading.Thread):
                                         ((err == 1) | (err == settings.ERROR_WIN) |
                                          (cor == 1) | (cor == settings.CORRECT_WIN)))[0]
 
-
-                    if need_chk.size and self.detect_errors(video, frame, mast=True):
+                    # print(video.id,need_chk)
+                    if need_chk.size and len(self.detect_errors(video, frame, mast=True))!=0:
+                        print('异常失败')
                         err[need_chk] = 0
                         fail_raw[need_chk] = False
                     # 断线 / 恢复亮
-                    broke_idx = np.where(np.logical_and((err == settings.ERROR_WIN),  lit))[0]
+                    broke_idx = np.where(np.logical_and((err >= settings.ERROR_WIN),  lit))[0]
                     light_idx = np.where(
                         np.logical_and.reduce((
-                            cor == settings.CORRECT_WIN,
+                            cor >= settings.CORRECT_WIN,
                             ~lit,
                             video.xian_allow_light
                         ))
@@ -260,11 +261,11 @@ class VideoProcessorThread(threading.Thread):
                             ~video.xian_allow_light
                         ))
                     )[0]
-
+                    # print(light_idx,light_piao_idx,video.xian_allow_light)
                     # 更新持久状态
                     lit[broke_idx] = False
                     lit[light_idx] = True
-                    video.xian_allow_light[broke_idx] = False
+                    # video.xian_allow_light[broke_idx] = False
                     cor[broke_idx] = 0
                     cor[light_piao_idx]=0
                     err[light_idx] = 0

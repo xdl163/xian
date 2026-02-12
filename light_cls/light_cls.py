@@ -7,7 +7,7 @@ import torch
 import settings
 
 DEVICE = "cpu"
-DEFAULT_MODEL_PATH = Path(__file__).resolve().parent.parent / "model_int8.onnx"
+DEFAULT_MODEL_PATH = Path(__file__).resolve().parent.parent / "int8_scripted.pt"
 
 _model = None
 _model_path_loaded = None

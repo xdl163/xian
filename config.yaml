@@ -1,38 +1,33 @@
-video_path: "E:/datasets/断线检测数据/安装包/yamllocal"  #摄像头参数配置文件目录
-image_size: [800, 448]  # 设置视频图像的大小
-crop_size: [40,40] #设置亮点框的大小
-
-save: false #是否保存每一帧识别结果
-save_csv: false #是否以csv格式保存一帧识别结果
-video_output_path: 'E:/datasets/videos' #保存路径
-
-#日志保存配置
-save_img: true  #日志是否保存图片
-save_img_path: 'C:/Users/10561/Pictures/xian'  #日志图片保存路径
-
-db_host: '127.0.0.1'  #mysql数据库 ip
-db_port: 3306 #mysql数据库 端口
-db_user: 'root'  #mysql数据库 账户
-db_password: 'xu12345678gh'#mysql数据库 密码
-db_save_day: 30  #日志保存天数
-
-error_win: 2  #连续结果一致数量（断）
-correct_win: 2 #连续结果一致数量（亮）
-
-BUF_SIZE: 3  # 内部参数
-HISTORY_LEN: 6 # 内部参数
-
-PLC_yaml: 'PLC_add.yaml'  #PLC配置文件路径
-
-
+video_path: E:/datasets/断线检测数据/安装包/yamllocal
+image_size:
+- 800
+- 448
+crop_size:
+- 40
+- 40
+save: false
+save_csv: false
+video_output_path: E:/datasets/videos
+save_img: true
+save_img_path: C:/Users/10561/Pictures/xian
+db_host: 127.0.0.1
+db_port: 3306
+db_user: root
+db_password: xu12345678gh
+db_save_day: 30
+error_win: 2
+correct_win: 2
+BUF_SIZE: 3
+HISTORY_LEN: 6
+PLC_yaml: PLC_add.yaml
 point_max_size: 20
-
 medianBlur_ksize: 11
 threshold_thresh: 5
-kernel_ksize: [30, 40]
-kernel_ksize2: [40, 100]
-
-
-
-model_threshold: 0.9  # 模型预测阈值
-model_path: "model_int8.onnx"  # 项目根目录下模型文件
+kernel_ksize:
+- 30
+- 40
+kernel_ksize2:
+- 40
+- 100
+model_threshold: 0.5
+model_path: int8_scripted.pt

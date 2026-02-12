@@ -13,10 +13,10 @@ from flask import Flask, Response, jsonify, render_template, request
 from werkzeug.utils import secure_filename
 
 import settings
-from Utils import load_config, load_video_yaml
+from Utils import load_config
 from detect_xian import VideoProcessorThread
 from light_cls.light_cls import reload_model
-
+from Page import load_video_yaml
 
 app = Flask(__name__)
 _state_lock = threading.Lock()

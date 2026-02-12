@@ -148,9 +148,9 @@ class Video:
     def last_img(self):          # 最老的一帧
         return self.history_queue[0] if self.history_queue else None
 
-    def start(self):
-        """兼容旧接口（已在构造时启动抓取线程）。"""
-        pass
+    # def start(self):
+    #     """兼容旧接口（已在构造时启动抓取线程）。"""
+    #     pass
 
     def stop(self):
         """停止内部抓取线程。"""
