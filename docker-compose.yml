@@ -34,9 +34,6 @@ services:
       DB_PORT: 3306
       DB_USER: root
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD}
-      VIDEO_PATH: /app/videos
-      VIDEO_OUTPUT_PATH: /app/video_output
-      SAVE_IMG_PATH: /app/save_images
       TZ: ${TZ}
     ports:
       - "${APP_PORT}:5000"
