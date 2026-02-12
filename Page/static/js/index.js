@@ -197,7 +197,7 @@
     const cctx = cvs.getContext('2d');
     const stream = cvs.captureStream(5);
     const mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
-    const rec = { videoId, drawRecognition, chunks: [], mediaRecorder, frameTimer: null, chunkTimer: null, flushTimer: null, active: true };
+    const rec = { videoId, drawRecognition, chunks: [], mediaRecorder, frameTimer: null, chunkTimer: null, flushTimer: null, recognitionTimer: null, latestRecognition: null, active: true };
 
     mediaRecorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) rec.chunks.push(e.data);
@@ -213,6 +213,15 @@
       setMsg(`录制 ${videoId} 自动分片下载（10分钟）`);
     }, AUTO_DOWNLOAD_MS);
 
+    if (rec.drawRecognition) {
+      rec.recognitionTimer = setInterval(async () => {
+        if (!rec.active) return;
+        try {
+          rec.latestRecognition = await fetchRecognition(videoId);
+        } catch (_e) {}
+      }, 300);
+    }
+
     rec.frameTimer = setInterval(async () => {
       if (!rec.active) return;
       try {
@@ -225,8 +234,7 @@
         cctx.clearRect(0, 0, cvs.width, cvs.height);
         cctx.drawImage(data.img, 0, 0, cvs.width, cvs.height);
         if (rec.drawRecognition) {
-          const recData = await fetchRecognition(videoId);
-          drawBoxes(cctx, cvs.width, cvs.height, recData);
+          drawBoxes(cctx, cvs.width, cvs.height, rec.latestRecognition);
         }
       } catch (_e) {}
     }, 250);
@@ -242,6 +250,7 @@
     clearInterval(rec.frameTimer);
     clearInterval(rec.chunkTimer);
     clearInterval(rec.flushTimer);
+    clearInterval(rec.recognitionTimer);
 
     if (rec.mediaRecorder.state === 'recording') {
       rec.mediaRecorder.requestData();
