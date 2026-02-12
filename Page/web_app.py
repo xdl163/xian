@@ -229,7 +229,8 @@ def get_frame(video_id: int):
     if frame is None:
         return jsonify({"error": "no_frame"}), 404
 
-    ok, buf = cv2.imencode(".jpg", frame)
+    # 仅做 JPEG 编码传输，不做任何 resize/裁剪；质量调高以尽量接近原画质
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
     if not ok:
         return jsonify({"error": "encode_failed"}), 500
 

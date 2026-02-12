@@ -9,7 +9,7 @@
   let equalStart = null;
 
   let frameBuffer = [];
-  const maxFrames = 300;
+  const maxFrames = 1000;
   let liveMode = true;
   let showFrameIndex = 0;
   let pollTimer = null;
@@ -17,7 +17,7 @@
 
   const canvas = document.getElementById('frameCanvas');
   const ctx = canvas.getContext('2d');
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true;
   const rows = document.getElementById('rows');
   const msg = document.getElementById('msg');
   const slider = document.getElementById('frameSlider');
@@ -25,6 +25,7 @@
   const annType = document.getElementById('annType');
   const pointId = document.getElementById('pointId');
   const autoNumber = document.getElementById('autoNumber');
+  const returnBtn = document.getElementById('returnBtn');
 
   function $(id) { return document.getElementById(id); }
 
@@ -240,6 +241,7 @@
       if (!canvas.width) {
         canvas.width = data.width || frameWidth;
         canvas.height = data.height || frameHeight;
+        fitCanvasToPage();
       }
 
       const img = new Image();
@@ -269,6 +271,18 @@
     fetchFrame();
   }
 
+  function fitCanvasToPage() {
+    if (!canvas.width || !canvas.height) return;
+    const container = canvas.parentElement;
+    if (!container) return;
+    const maxW = Math.max(320, container.clientWidth - 4);
+    const ratio = canvas.width / canvas.height;
+    const viewW = Math.min(maxW, canvas.width);
+    const viewH = Math.round(viewW / ratio);
+    canvas.style.width = `${viewW}px`;
+    canvas.style.height = `${viewH}px`;
+  }
+
   function clearFrameCache() {
     if (pollTimer) {
       clearInterval(pollTimer);
@@ -279,6 +293,10 @@
   }
 
   function bindEvents() {
+    if (returnBtn) {
+      returnBtn.addEventListener('click', clearFrameCache);
+    }
+
     canvas.addEventListener('mousedown', (e) => {
       const p = frameToCanvas(e);
       const hit = findAnnByPixel(p.x, p.y);
@@ -340,6 +358,8 @@
       liveMode = idx >= frameBuffer.length - 1;
       drawFrameAndAnnotations();
     });
+
+    window.addEventListener('resize', fitCanvasToPage);
 
     document.getElementById('renameBtn').onclick = () => {
       if (selected < 0) return;

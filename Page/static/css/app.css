@@ -82,8 +82,8 @@ button:hover { border-color: var(--primary); }
   margin-bottom: 8px;
 }
 .frame-canvas {
-  width: auto;
-  max-width: none;
+  width: 100%;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 6px;
   display: block;
