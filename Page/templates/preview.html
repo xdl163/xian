@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>预览 {{ video_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <p class="top-actions"><a class="btn-link" href="{{ url_for('index') }}">返回</a> <button id="downloadBtn" type="button">下载当前帧</button></p>
+    <h3>预览 {{ video_id }}（前端绘制识别框）</h3>
+    <div class="preview-box preview-stage">
+      <canvas id="previewFrameCanvas" class="preview-canvas"></canvas>
+      <canvas id="previewOverlay"></canvas>
+    </div>
+  </main>
+
+  <script>
+    window.PREVIEW_CONFIG = {
+      videoId: {{ video_id | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/preview.js') }}"></script>
+</body>
+</html>

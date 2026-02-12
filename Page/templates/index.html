@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>断线检测</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <h2>断线检测（Web）</h2>
+
+    <table class="table">
+      <thead>
+      <tr>
+        <th>id</th>
+        <th>video_id</th>
+        <th>add_type（区域）</th>
+        <th>预览</th>
+        <th>标注</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for video in videos %}
+      <tr>
+        <td>{{ video.id }}</td>
+        <td>{{ video.video_id if video.video_id is not none else '' }}</td>
+        <td>{{ video.add_type if video.add_type is not none else '' }}</td>
+        <td><a class="btn-link" href="{{ url_for('preview_page', video_id=video.id) }}">预览</a></td>
+        <td><a class="btn-link" href="{{ url_for('annotate_page', video_id=video.id) }}">标注</a></td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>

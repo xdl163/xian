@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>标注 {{ video_id }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="annotate-layout">
+      <div class="panel annotate-left">
+        <div class="left-top-actions">
+          <button id="saveBtn" type="button">保存</button>
+          <a id="returnBtn" class="btn-link" href="{{ url_for('index') }}">返回</a>
+          <span id="msg" class="tip"></span>
+        </div>
+
+        <h3>标注视频 {{ video_id }}</h3>
+        <canvas id="frameCanvas" class="frame-canvas"></canvas>
+        <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" class="frame-slider" />
+        <p class="tip">拖到最后一帧时显示实时最新帧；可拖拽标注框，方向键微调选中框。</p>
+      </div>
+
+      <aside class="annotate-right">
+        <section class="panel config-block">
+          <h4>标注控制</h4>
+          <div class="controls-col">
+            <label>类型</label>
+            <select id="annType">
+              <option value="yarn">纱线</option>
+              <option value="laser_emitter">激光发射器</option>
+              <option value="laser_wall">激光墙壁</option>
+            </select>
+
+            <label>点编号</label>
+            <input id="pointId" placeholder="可重命名" />
+
+            <label class="inline-check"><input id="autoNumber" type="checkbox" checked /> 自动编号</label>
+
+            <div class="btn-row">
+              <button id="renameBtn" type="button">重命名选中点</button>
+              <button id="removeBtn" type="button">删除选中点</button>
+              <button id="removeAllBtn" type="button">一键删除全部</button>
+              <button id="equalBtn" type="button">等距标注</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel config-block">
+          <h4>HSV 阈值</h4>
+          <div class="hsv-grid">
+            <label>Hmin <input id="h_min" /></label>
+            <label>Hmax <input id="h_max" /></label>
+            <label>Smin <input id="s_min" /></label>
+            <label>Smax <input id="s_max" /></label>
+            <label>Vmin <input id="v_min" /></label>
+            <label>Vmax <input id="v_max" /></label>
+          </div>
+        </section>
+
+        <section class="panel config-block">
+          <h4>视频配置</h4>
+          <div class="meta-col">
+            <label>video_id <input id="video_id" /></label>
+            <label>add_type <input id="add_type" /></label>
+            <label>id <input id="meta_id" /></label>
+            <label>video_type <input id="video_type" /></label>
+            <label>video_url <input id="video_url" /></label>
+          </div>
+        </section>
+
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    window.APP_CONFIG = {
+      videoId: {{ video_id | tojson }},
+      frameWidth: {{ frame_width | tojson }},
+      frameHeight: {{ frame_height | tojson }}
+    };
+  </script>
+  <script src="{{ url_for('static', filename='js/annotate.js') }}"></script>
+</body>
+</html>

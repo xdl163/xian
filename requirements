@@ -9,3 +9,5 @@ pyinstaller
 pyyaml
 pycryptodome
 pyserial
+
+Flask
