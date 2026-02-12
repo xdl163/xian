@@ -49,7 +49,8 @@ body {
   display: block;
 }
 .preview-canvas {
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
   display: block;
 }

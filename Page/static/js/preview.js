@@ -15,10 +15,15 @@
     overlayCanvas.width = width;
     overlayCanvas.height = height;
 
-    frameCanvas.style.width = '100%';
-    frameCanvas.style.height = 'auto';
-    overlayCanvas.style.width = frameCanvas.clientWidth ? `${frameCanvas.clientWidth}px` : '100%';
-    overlayCanvas.style.height = frameCanvas.clientHeight ? `${frameCanvas.clientHeight}px` : 'auto';
+    const stage = frameCanvas.parentElement;
+    const maxW = stage ? Math.max(320, stage.clientWidth - 2) : width;
+    const viewW = Math.min(width, maxW); // 不放大到原始分辨率以上，避免糊
+    const viewH = Math.round((viewW / width) * height);
+
+    frameCanvas.style.width = `${viewW}px`;
+    frameCanvas.style.height = `${viewH}px`;
+    overlayCanvas.style.width = `${viewW}px`;
+    overlayCanvas.style.height = `${viewH}px`;
   }
 
   function redraw() {

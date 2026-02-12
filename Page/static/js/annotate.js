@@ -95,8 +95,8 @@
   function frameToCanvas(e) {
     const rect = canvas.getBoundingClientRect();
     return {
-      x: Math.round((e.clientX - rect.left) / canvas.width * frameWidth),
-      y: Math.round((e.clientY - rect.top) / canvas.height * frameHeight),
+      x: Math.round((e.clientX - rect.left) / rect.width * frameWidth),
+      y: Math.round((e.clientY - rect.top) / rect.height * frameHeight),
     };
   }
 
