@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>事件日志</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="panel">
+      <div class="btn-row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin: 0;">日志与状态</h3>
+        <button id="backBtn" type="button">返回首页</button>
+      </div>
+
+      <h4 style="margin: 0 0 8px;">摄像头状态（实时刷新 1 秒）</h4>
+      <div class="logs-list-wrap" style="margin-bottom: 12px;">
+        <table class="table logs-table" id="statusTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>影像头编号</th>
+              <th>区域</th>
+              <th>IP</th>
+              <th>断线数量</th>
+              <th>线</th>
+              <th>状态</th>
+              <th>更新时间</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <h4 style="margin: 0 0 8px;">日志事件</h4>
+      <div class="logs-toolbar logs-toolbar-grid">
+        <label>摄像头ID
+          <input id="cameraIdInput" type="text" placeholder="如: 1" />
+        </label>
+        <label>区域
+          <input id="cameraAreaInput" type="text" placeholder="如: 1a" />
+        </label>
+        <label>线号
+          <input id="lineNumberInput" type="number" min="0" placeholder="如: 1" />
+        </label>
+        <label>类型
+          <input id="eventTypeInput" type="text" placeholder="如: duanxian" />
+        </label>
+        <label>开始时间
+          <input id="startTimeInput" type="datetime-local" />
+        </label>
+        <label>结束时间
+          <input id="endTimeInput" type="datetime-local" />
+        </label>
+        <label>每页条数
+          <select id="limitSelect">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+        <label>自动刷新
+          <select id="autoRefreshSelect">
+            <option value="0" selected>关闭</option>
+            <option value="1000">1秒</option>
+            <option value="2000">2秒</option>
+            <option value="5000">5秒</option>
+            <option value="10000">10秒</option>
+          </select>
+        </label>
+        <div class="btn-row logs-toolbar-actions">
+          <button id="queryBtn" type="button">查询</button>
+          <button id="refreshBtn" type="button">刷新</button>
+        </div>
+      </div>
+
+      <p id="logsMsg" class="tip"></p>
+
+      <div class="logs-list-wrap">
+        <table class="table logs-table" id="logsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>时间</th>
+              <th>摄像头</th>
+              <th>区域</th>
+              <th>线号</th>
+              <th>类型</th>
+              <th>图片</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row" style="justify-content: flex-end; margin-top: 10px;">
+        <button id="prevBtn" type="button">上一页</button>
+        <span id="pageInfo" class="tip">-</span>
+        <button id="nextBtn" type="button">下一页</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="imageModal" class="modal-mask hidden">
+    <div class="modal-card image-viewer-card">
+      <div class="btn-row" style="justify-content:flex-end; margin-bottom: 8px;">
+        <button id="closeImageBtn" type="button">关闭</button>
+      </div>
+      <img id="imageViewer" class="image-viewer" alt="日志图片" />
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+</body>
+</html>

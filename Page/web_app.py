@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import os
 import threading
 import time
 from collections import deque
@@ -20,6 +21,8 @@ from Page import load_video_yaml
 
 app = Flask(__name__)
 _state_lock = threading.Lock()
+_event_image_cache_lock = threading.Lock()
+_event_image_cache: dict[str, dict[str, Any]] = {}
 
 
 def _video_by_id(video_id: int):
@@ -35,6 +38,46 @@ def _read_yaml(path: str) -> dict[str, Any]:
             return yaml.safe_load(f) or {}
     except Exception:
         return {}
+
+
+def _image_version(path: str) -> str:
+    try:
+        st = os.stat(path)
+        return f"{st.st_mtime_ns}_{st.st_size}"
+    except Exception:
+        return ""
+
+
+def _read_image_base64_cached(path: str, version: str) -> str | None:
+    key = f"{path}|{version}"
+    with _event_image_cache_lock:
+        hit = _event_image_cache.get(key)
+        if hit:
+            return hit["payload"]
+
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except Exception:
+        return None
+
+    payload = base64.b64encode(raw).decode("ascii")
+    with _event_image_cache_lock:
+        _event_image_cache[key] = {"payload": payload, "at": time.time()}
+        if len(_event_image_cache) > 512:
+            items = sorted(_event_image_cache.items(), key=lambda x: x[1]["at"])
+            for old_k, _ in items[:128]:
+                _event_image_cache.pop(old_k, None)
+    return payload
+
+
+def _safe_int(value: Any, default: int | None = None) -> int | None:
+    try:
+        if value is None or value == "":
+            return default
+        return int(value)
+    except Exception:
+        return default
 
 
 def _check_password(raw_password: str) -> bool:
@@ -502,6 +545,151 @@ def settings_page():
     if not _check_password(password):
         return Response("password error", status=403)
     return render_template("settings.html", password=password)
+
+
+@app.get("/logs")
+def logs_page():
+    return render_template("logs.html")
+
+
+@app.post("/api/logs")
+def get_logs():
+    payload = request.get_json(force=True, silent=True) or {}
+    limit = max(1, min(_safe_int(payload.get("limit", 20), 20) or 20, 100))
+    offset = max(0, _safe_int(payload.get("offset", 0), 0) or 0)
+    camera_id = str(payload.get("camera_id", "")).strip()
+    camera_area = str(payload.get("camera_area", "")).strip()
+    line_number = _safe_int(payload.get("line_number", ""), None)
+    event_type = str(payload.get("event_type", "")).strip()
+    start_time = str(payload.get("start_time", "")).strip()
+    end_time = str(payload.get("end_time", "")).strip()
+    cached_images = payload.get("cached_images", {}) or {}
+    if not isinstance(cached_images, dict):
+        cached_images = {}
+
+    db = getattr(settings, "xiandb", None)
+    conn = getattr(db, "connection", None)
+    if conn is None:
+        return jsonify({"total": 0, "rows": [], "error": "db_not_ready"}), 503
+
+    where_sql_parts = []
+    where_args: list[Any] = []
+    if camera_id:
+        where_sql_parts.append("camera_id=%s")
+        where_args.append(camera_id)
+    if camera_area:
+        where_sql_parts.append("camera_area=%s")
+        where_args.append(camera_area)
+    if line_number is not None:
+        where_sql_parts.append("line_number=%s")
+        where_args.append(line_number)
+    if event_type:
+        where_sql_parts.append("event_type=%s")
+        where_args.append(event_type)
+    if start_time:
+        where_sql_parts.append("time >= %s")
+        where_args.append(start_time)
+    if end_time:
+        where_sql_parts.append("time <= %s")
+        where_args.append(end_time)
+
+    where_sql = f" WHERE {' AND '.join(where_sql_parts)} " if where_sql_parts else ""
+
+    rows = []
+    total = 0
+    try:
+        conn_lock = getattr(db, "_conn_lock", None)
+        if conn_lock is not None:
+            conn_lock.acquire()
+        try:
+            conn.ping(reconnect=True)
+            with conn.cursor() as cursor:
+                cursor.execute("USE xian;")
+                cursor.execute(f"SELECT COUNT(*) FROM xian_event {where_sql};", tuple(where_args))
+                total = int(cursor.fetchone()[0])
+
+                query_sql = (
+                    "SELECT id, time, camera_id, camera_area, line_number, event_type, image_path "
+                    f"FROM xian_event {where_sql} "
+                    "ORDER BY time DESC LIMIT %s OFFSET %s;"
+                )
+                args = tuple(where_args + [limit, offset])
+                cursor.execute(query_sql, args)
+                data_rows = cursor.fetchall()
+        finally:
+            if conn_lock is not None:
+                conn_lock.release()
+
+        for row in data_rows:
+            event_id, t, cam_id, cam_area, line_no, event_type, image_path = row
+            image_path = str(image_path or "")
+            image_ver = _image_version(image_path) if image_path else ""
+            cache_key = str(event_id)
+            has_cached = str(cached_images.get(cache_key, "")) == image_ver and bool(image_ver)
+            image_data = None
+            if image_ver and not has_cached:
+                image_data = _read_image_base64_cached(image_path, image_ver)
+
+            rows.append({
+                "id": int(event_id),
+                "time": t.strftime("%Y-%m-%d %H:%M:%S") if t else "",
+                "camera_id": int(cam_id) if cam_id is not None else None,
+                "camera_area": str(cam_area or ""),
+                "line_number": int(line_no) if line_no is not None else None,
+                "event_type": str(event_type or ""),
+                "image": {
+                    "version": image_ver,
+                    "cached": has_cached,
+                    "data": image_data,
+                },
+            })
+    except Exception as e:
+        return jsonify({"total": 0, "rows": [], "error": str(e)}), 500
+
+    return jsonify({"total": total, "rows": rows, "limit": limit, "offset": offset})
+
+
+@app.get("/api/logs/status")
+def get_camera_status_rows():
+    db = getattr(settings, "xiandb", None)
+    conn = getattr(db, "connection", None)
+    if conn is None:
+        return jsonify({"rows": [], "error": "db_not_ready"}), 503
+
+    rows = []
+    try:
+        conn_lock = getattr(db, "_conn_lock", None)
+        if conn_lock is not None:
+            conn_lock.acquire()
+        try:
+            conn.ping(reconnect=True)
+            with conn.cursor() as cursor:
+                cursor.execute("USE xian;")
+                cursor.execute(
+                    "SELECT id, video_id, add_type, ip, duanxian_num, xian_status, status, update_time "
+                    "FROM video_info ORDER BY CAST(id AS UNSIGNED) ASC;"
+                )
+                data_rows = cursor.fetchall()
+        finally:
+            if conn_lock is not None:
+                conn_lock.release()
+
+        for row in data_rows:
+            cid, video_id, area, ip, broken_count, xian_status, status, update_time = row
+            rows.append({
+                "id": str(cid or ""),
+                "video_id": _safe_int(video_id, None),
+                "camera_area": str(area or ""),
+                "ip": str(ip or ""),
+                "broken_count": _safe_int(broken_count, 0) or 0,
+                "line_status": str(xian_status or ""),
+                "status": str(status or ""),
+                "update_time": update_time.strftime("%Y-%m-%d %H:%M:%S") if update_time else "",
+            })
+    except Exception as e:
+        return jsonify({"rows": [], "error": str(e)}), 500
+
+    return jsonify({"rows": rows, "ts": time.time()})
 
 
 def run_web_server(host: str = "0.0.0.0", port: int = 5000):

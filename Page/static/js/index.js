@@ -267,6 +267,10 @@
     window.location.href = `/settings?password=${encodeURIComponent(password)}`;
   }
 
+  function openLogsPage() {
+    window.location.href = '/logs';
+  }
+
   async function openAnnotatePage(videoId) {
     const password = await askPassword();
     if (!password) return;
@@ -301,6 +305,7 @@
 
   document.getElementById('openSettingsBtn').addEventListener('click', openSettingsPage);
   document.getElementById('addCameraBtn').addEventListener('click', addCamera);
+  document.getElementById('openLogsBtn').addEventListener('click', openLogsPage);
 
   document.getElementById('videoTable').addEventListener('click', async (e) => {
     const id = Number(e.target.dataset.id);

@@ -11,6 +11,17 @@ from mysql_def import XianDB
 
 import settings
 
+
+DOCKER_DEFAULT_VIDEO_PATH = "/app/videos"
+DOCKER_DEFAULT_VIDEO_OUTPUT_PATH = "/app/video_output"
+DOCKER_DEFAULT_SAVE_IMG_PATH = "/app/save_images"
+
+
+def _is_docker_env() -> bool:
+    if os.environ.get("RUNNING_IN_DOCKER", "") == "1":
+        return True
+    return os.path.exists("/.dockerenv")
+
 def cv2_to_qimage(cv_img):
     """
     将 OpenCV 图像（numpy 数组）转换为 QImage。
@@ -31,6 +42,12 @@ def load_config(config_path):
     with open(config_path, 'r', encoding='utf-8') as file:
         # with open("b.yaml", 'r', encoding='utf-8') as file:
         config = yaml.safe_load(file)
+
+    if _is_docker_env():
+        config['video_path'] = os.environ.get('VIDEO_PATH', DOCKER_DEFAULT_VIDEO_PATH)
+        config['video_output_path'] = os.environ.get('VIDEO_OUTPUT_PATH', DOCKER_DEFAULT_VIDEO_OUTPUT_PATH)
+        config['save_img_path'] = os.environ.get('SAVE_IMG_PATH', DOCKER_DEFAULT_SAVE_IMG_PATH)
+        print('Docker 环境: 使用默认路径(忽略 YAML 中路径配置)')
 
 
     print(config)
