@@ -9,23 +9,26 @@
 <body>
   <main class="container">
     <h2>断线检测（Web）</h2>
-    <p class="tip">可通过局域网访问：<code>http://服务器IP:5000</code></p>
 
     <table class="table">
       <thead>
-        <tr>
-          <th>Video ID</th>
-          <th>预览</th>
-          <th>标注</th>
-        </tr>
+      <tr>
+        <th>id</th>
+        <th>video_id</th>
+        <th>add_type（区域）</th>
+        <th>预览</th>
+        <th>标注</th>
+      </tr>
       </thead>
       <tbody>
       {% for video in videos %}
-        <tr>
-          <td>{{ video.id }}</td>
-          <td><a class="btn-link" href="{{ url_for('preview_page', video_id=video.id) }}">预览</a></td>
-          <td><a class="btn-link" href="{{ url_for('annotate_page', video_id=video.id) }}">标注</a></td>
-        </tr>
+      <tr>
+        <td>{{ video.id }}</td>
+        <td>{{ video.video_id if video.video_id is not none else '' }}</td>
+        <td>{{ video.add_type if video.add_type is not none else '' }}</td>
+        <td><a class="btn-link" href="{{ url_for('preview_page', video_id=video.id) }}">预览</a></td>
+        <td><a class="btn-link" href="{{ url_for('annotate_page', video_id=video.id) }}">标注</a></td>
+      </tr>
       {% endfor %}
       </tbody>
     </table>

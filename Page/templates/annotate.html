@@ -8,14 +8,18 @@
 </head>
 <body>
   <main class="container">
-    <h3>标注视频 {{ video_id }}</h3>
-
     <section class="annotate-layout">
       <div class="panel annotate-left">
-        <div id="board" class="board">
-          <img id="img" src="{{ url_for('stream', video_id=video_id) }}" width="960" alt="视频流" />
-          <canvas id="layer"></canvas>
+        <div class="left-top-actions">
+          <button id="saveBtn" type="button">保存</button>
+          <a class="btn-link" href="{{ url_for('index') }}">返回</a>
+          <span id="msg" class="tip"></span>
         </div>
+
+        <h3>标注视频 {{ video_id }}</h3>
+        <canvas id="frameCanvas" class="frame-canvas"></canvas>
+        <input id="frameSlider" type="range" min="0" max="0" value="0" step="1" class="frame-slider" />
+        <p class="tip">拖到最后一帧时显示实时最新帧；可拖拽标注框，方向键微调选中框。</p>
       </div>
 
       <aside class="annotate-right">
@@ -32,9 +36,12 @@
             <label>点编号</label>
             <input id="pointId" placeholder="可重命名" />
 
+            <label class="inline-check"><input id="autoNumber" type="checkbox" checked /> 自动编号</label>
+
             <div class="btn-row">
               <button id="renameBtn" type="button">重命名选中点</button>
               <button id="removeBtn" type="button">删除选中点</button>
+              <button id="equalBtn" type="button">等距标注</button>
             </div>
           </div>
         </section>
@@ -63,18 +70,10 @@
         </section>
 
         <section class="panel config-block">
-          <div class="btn-row">
-            <button id="saveBtn" type="button">保存</button>
-            <a class="btn-link" href="{{ url_for('index') }}">返回</a>
-          </div>
-          <span id="msg" class="tip"></span>
-        </section>
-
-        <section class="panel config-block">
           <h4>标注列表</h4>
           <table class="table">
             <thead>
-            <tr><th>#</th><th>类型</th><th>坐标</th></tr>
+            <tr><th>#</th><th>类型</th><th>坐标</th><th>删除</th></tr>
             </thead>
             <tbody id="rows"></tbody>
           </table>

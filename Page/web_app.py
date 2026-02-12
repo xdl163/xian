@@ -1,3 +1,4 @@
+import base64
 import hashlib
 import threading
 import time
@@ -152,7 +153,7 @@ def _draw_recognition_overlay(video, frame):
         color = (0, 255, 0) if is_light else (0, 0, 255)
         text = f"{label}:{'亮' if is_light else '断线'}"
 
-        cv2.rectangle(draw, (int(x1), int(y1)), (int(x2), int(y2)), color, 2)
+        cv2.rectangle(draw, (int(x1), int(y1)), (int(x2), int(y2)), color, 1)
         cv2.putText(
             draw,
             text,
@@ -160,7 +161,7 @@ def _draw_recognition_overlay(video, frame):
             cv2.FONT_HERSHEY_SIMPLEX,
             0.55,
             color,
-            2,
+            1,
             lineType=cv2.LINE_AA,
         )
 
@@ -222,6 +223,24 @@ def stream_result(video_id: int):
     if video is None:
         return Response("not found", status=404)
     return Response(_stream_generator(video, with_overlay=True), mimetype="multipart/x-mixed-replace; boundary=frame")
+
+
+@app.get("/api/video/<int:video_id>/frame")
+def get_frame(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+
+    frame = getattr(video, "this_frame", None)
+    if frame is None:
+        return jsonify({"error": "no_frame"}), 404
+
+    ok, buf = cv2.imencode(".jpg", frame)
+    if not ok:
+        return jsonify({"error": "encode_failed"}), 500
+
+    payload = base64.b64encode(buf.tobytes()).decode("ascii")
+    return jsonify({"image": payload, "width": int(frame.shape[1]), "height": int(frame.shape[0]), "ts": time.time()})
 
 
 @app.get("/api/video/<int:video_id>/annotation")

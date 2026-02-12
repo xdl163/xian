@@ -15,10 +15,11 @@ body {
 }
 .container {
   max-width: 1500px;
-  margin: 20px auto;
+  margin: 16px auto;
   padding: 0 16px;
 }
 .tip { color: var(--muted); }
+.top-actions { margin: 0 0 6px; }
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -47,34 +48,6 @@ body {
   width: 100%;
   display: block;
 }
-.board {
-  position: relative;
-  display: inline-block;
-  max-width: 100%;
-}
-#img {
-  max-width: 100%;
-  display: block;
-}
-#layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  pointer-events: auto;
-}
-.controls-row {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.controls-row input, .controls-row select, .meta-grid input {
-  background: #0b1220;
-  border: 1px solid var(--line);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 4px 8px;
-}
 button {
   background: #1f2937;
   border: 1px solid var(--line);
@@ -84,16 +57,7 @@ button {
   cursor: pointer;
 }
 button:hover { border-color: var(--primary); }
-.meta-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-.meta-grid label { display: flex; gap: 8px; align-items: center; }
-.meta-grid .full { grid-column: 1 / -1; }
-.meta-grid .full input { flex: 1; }
 
-/* 标注页左右布局 */
 .annotate-layout {
   display: grid;
   grid-template-columns: minmax(720px, 1fr) 430px;
@@ -103,13 +67,26 @@ button:hover { border-color: var(--primary); }
 .annotate-left {
   min-height: 560px;
 }
+.left-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.frame-canvas {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  display: block;
+}
+.frame-slider {
+  width: 100%;
+  margin: 10px 0 6px;
+}
 .annotate-right {
   display: flex;
   flex-direction: column;
-  gap: 0;
-}
-.annotate-right .panel {
-  margin-bottom: 12px;
 }
 .config-block h4 {
   margin: 0 0 10px;
@@ -119,6 +96,11 @@ button:hover { border-color: var(--primary); }
 .meta-col {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+}
+.inline-check {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 .controls-col input,
