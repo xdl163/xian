@@ -245,7 +245,7 @@
       }
 
       const img = new Image();
-      img.src = `data:image/jpeg;base64,${data.image}`;
+      img.src = `data:image/png;base64,${data.image}`;
       await img.decode();
 
       frameCache.set(data.ts, img);

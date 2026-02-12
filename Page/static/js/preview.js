@@ -53,7 +53,7 @@
       if (!frameCanvas.width) syncSize(data.width, data.height);
 
       const img = new Image();
-      img.src = `data:image/jpeg;base64,${data.image}`;
+      img.src = `data:image/png;base64,${data.image}`;
       await img.decode();
       latestFrame = img;
       redraw();
