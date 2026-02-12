@@ -18,7 +18,6 @@
   const canvas = document.getElementById('frameCanvas');
   const ctx = canvas.getContext('2d');
   ctx.imageSmoothingEnabled = true;
-  const rows = document.getElementById('rows');
   const msg = document.getElementById('msg');
   const slider = document.getElementById('frameSlider');
 
@@ -63,33 +62,6 @@
       ctx.fillText(String(ann.id), x + 10, y - 10);
     });
 
-    renderRows();
-  }
-
-  function renderRows() {
-    rows.innerHTML = '';
-    annotations.forEach((ann, index) => {
-      const tr = document.createElement('tr');
-      const tdDel = document.createElement('td');
-      const delBtn = document.createElement('button');
-      delBtn.textContent = '删';
-      delBtn.onclick = (e) => {
-        e.stopPropagation();
-        annotations.splice(index, 1);
-        if (selected === index) selected = -1;
-        drawFrameAndAnnotations();
-      };
-      tdDel.appendChild(delBtn);
-
-      tr.innerHTML = `<td>${ann.id}</td><td>${ann.type}</td><td>${ann.coords[0]}, ${ann.coords[1]}</td>`;
-      tr.appendChild(tdDel);
-      tr.onclick = () => {
-        selected = index;
-        pointId.value = ann.id;
-        drawFrameAndAnnotations();
-      };
-      rows.appendChild(tr);
-    });
   }
 
   function frameToCanvas(e) {
@@ -383,6 +355,14 @@
       annotations.splice(selected, 1);
       selected = -1;
       pointId.value = '';
+      drawFrameAndAnnotations();
+    };
+
+    document.getElementById('removeAllBtn').onclick = () => {
+      annotations = [];
+      selected = -1;
+      pointId.value = '';
+      setMsg('已清空全部标注');
       drawFrameAndAnnotations();
     };
 
