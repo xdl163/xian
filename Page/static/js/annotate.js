@@ -238,7 +238,7 @@
       if (!resp.ok) return;
       const data = await resp.json();
 
-      if (!canvas.width) {
+      if (canvas.width !== data.width || canvas.height !== data.height) {
         canvas.width = data.width || frameWidth;
         canvas.height = data.height || frameHeight;
         fitCanvasToPage();
@@ -301,23 +301,25 @@
       const p = frameToCanvas(e);
       const hit = findAnnByPixel(p.x, p.y);
 
-      if (equalMode) {
-        if (!equalStart) {
-          equalStart = p;
-          setMsg('已选第1个点，请点击第2个点');
-        } else {
-          addEqualDistancePoints(equalStart, p);
-          equalStart = null;
-          equalMode = false;
-        }
-        return;
-      }
-
       if (hit >= 0) {
         selected = hit;
         pointId.value = annotations[hit].id;
         drag = { index: hit, dx: p.x - annotations[hit].coords[0], dy: p.y - annotations[hit].coords[1] };
         drawFrameAndAnnotations();
+      }
+    });
+
+    canvas.addEventListener('dblclick', (e) => {
+      const p = frameToCanvas(e);
+      if (equalMode) {
+        if (!equalStart) {
+          equalStart = p;
+          setMsg('已选第1个点，请双击第2个点');
+        } else {
+          addEqualDistancePoints(equalStart, p);
+          equalStart = null;
+          equalMode = false;
+        }
         return;
       }
 

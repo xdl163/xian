@@ -51,7 +51,9 @@
       if (!resp.ok) return;
       const data = await resp.json();
 
-      if (!frameCanvas.width) syncSize(data.width, data.height);
+      if (frameCanvas.width !== data.width || frameCanvas.height !== data.height) {
+        syncSize(data.width, data.height);
+      }
 
       const img = new Image();
       img.src = `data:image/png;base64,${data.image}`;
