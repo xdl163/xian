@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>事件日志</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="panel">
+      <div class="btn-row" style="justify-content: space-between; align-items: center; margin-bottom: 10px;">
+        <h3 style="margin: 0;">事件日志</h3>
+        <div class="btn-row">
+          <button id="backBtn" type="button">返回首页</button>
+        </div>
+      </div>
+
+      <div class="logs-toolbar">
+        <label>摄像头ID
+          <input id="cameraIdInput" type="text" placeholder="留空表示全部" />
+        </label>
+        <label>每页条数
+          <select id="limitSelect">
+            <option value="10">10</option>
+            <option value="20" selected>20</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+        <button id="queryBtn" type="button">查询</button>
+        <button id="refreshBtn" type="button">刷新</button>
+      </div>
+
+      <p id="logsMsg" class="tip"></p>
+
+      <div class="logs-list-wrap">
+        <table class="table logs-table" id="logsTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>时间</th>
+              <th>摄像头</th>
+              <th>区域</th>
+              <th>线号</th>
+              <th>类型</th>
+              <th>图片</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="btn-row" style="justify-content: flex-end; margin-top: 10px;">
+        <button id="prevBtn" type="button">上一页</button>
+        <span id="pageInfo" class="tip">-</span>
+        <button id="nextBtn" type="button">下一页</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="imageModal" class="modal-mask hidden">
+    <div class="modal-card image-viewer-card">
+      <div class="btn-row" style="justify-content:flex-end; margin-bottom: 8px;">
+        <button id="closeImageBtn" type="button">关闭</button>
+      </div>
+      <img id="imageViewer" class="image-viewer" alt="日志图片" />
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/logs.js') }}"></script>
+</body>
+</html>
