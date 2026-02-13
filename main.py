@@ -50,4 +50,9 @@ pyarmor gen  -O dist4 --pack onefile src/main.py
 pyinstaller --onefile  src/main.py
 可用：
 pyarmor gen --enable-bcc --pack onefile  main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
+
+set PYARMOR_CC=E:\\PycharmProjects\\xian\\clang.exe
+
+pyarmor gen main.py activate/ CamMoveDetector/ datatypes/ detect_xian/ light_cls/ modbus/ mysql_def/ Page/ settings/ Utils/ Video_diff/  
+
 '''

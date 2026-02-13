@@ -10,4 +10,4 @@ pymysql
 pyserial
 pyyaml
 requests
-torch
+pyarmor
