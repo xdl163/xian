@@ -16,6 +16,9 @@
   let currentVideoId = Number(window.INIT_VIDEO_ID || -1);
   let latestFrame = null;
   let latestRecognition = null;
+  let previewTimer = null;
+  let recognitionTimer = null;
+  let recordBtnTimer = null;
 
   function setMsg(text, err = false) { homeMsg.textContent = text; homeMsg.style.color = err ? '#f87171' : '#9ca3af'; }
   function openModal(title, bodyHtml) { modalTitle.textContent = title; modalBody.innerHTML = bodyHtml; modalMask.classList.remove('hidden'); }
@@ -100,6 +103,7 @@
 
   async function fetchFrame(id) { const resp = await fetch(`/api/video/${id}/frame`); if (!resp.ok) return null; const data = await resp.json(); const img = new Image(); await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = `data:image/png;base64,${data.image}`; }); return { ...data, img }; }
   async function fetchRecognition(id) { const resp = await fetch(`/api/video/${id}/recognition`); if (!resp.ok) return null; return resp.json(); }
+  async function fetchRuntime() { const resp = await fetch(`/api/runtime`); if (!resp.ok) return null; return resp.json(); }
   async function fetchRecordingState(id) {
     const resp = await fetch(`/api/video/${id}/recordings`);
     if (!resp.ok) return null;
@@ -123,6 +127,24 @@
         btn.textContent = recording ? '结束录制' : '开始录制';
       } catch (_e) {}
     }));
+  }
+
+
+  async function configurePollingByRuntime() {
+    let fps = 3;
+    try {
+      const rt = await fetchRuntime();
+      if (rt && Number(rt.recognition_fps) > 0) fps = Number(rt.recognition_fps);
+    } catch (_e) {}
+
+    const intervalMs = Math.max(100, Math.round(1000 / fps));
+    if (previewTimer) clearInterval(previewTimer);
+    if (recognitionTimer) clearInterval(recognitionTimer);
+    if (recordBtnTimer) clearInterval(recordBtnTimer);
+
+    previewTimer = setInterval(pollPreview, intervalMs);
+    recognitionTimer = setInterval(pollRecognition, intervalMs);
+    recordBtnTimer = setInterval(syncRecordingButtonsFromBackend, Math.max(500, intervalMs));
   }
 
   async function toggleRecognition(videoId, enabled) {
@@ -175,8 +197,7 @@
   modalMask.addEventListener('click', (e) => { if (e.target === modalMask) closeModal(); });
   setActiveId();
   syncRecordingButtonsFromBackend();
-  setInterval(pollPreview, 250);
-  setInterval(pollRecognition, 250);
-  setInterval(syncRecordingButtonsFromBackend, 2000);
+  configurePollingByRuntime();
+  setInterval(configurePollingByRuntime, 5000);
   pollPreview(); pollRecognition();
 })();

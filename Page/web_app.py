@@ -300,6 +300,25 @@ def list_videos():
     return jsonify({"videos": rows})
 
 
+
+
+@app.get("/api/runtime")
+def get_runtime_info():
+    return jsonify({
+        "recognition_fps": float(getattr(settings, "recognition_fps", 3.0) or 3.0),
+        "frame_interval": float(settings.get_frame_interval()),
+    })
+
+
+@app.get("/api/perf/processor")
+def get_processor_perf():
+    values = settings.get_elapsed_series()
+    return jsonify({
+        "values": values,
+        "count": len(values),
+        "ts": time.time(),
+    })
+
 @app.get("/api/settings")
 def get_settings():
     if not _check_password(request.args.get("password", "")):

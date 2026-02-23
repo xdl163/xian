@@ -18,12 +18,15 @@
 
   const imageModal = document.getElementById('imageModal');
   const imageViewer = document.getElementById('imageViewer');
+  const perfCanvas = document.getElementById('processorPerfCanvas');
+  const perfCtx = perfCanvas ? perfCanvas.getContext('2d') : null;
 
   let total = 0;
   let offset = 0;
   let limit = Number(limitSelect.value || 20);
   let autoRefreshTimer = null;
   let statusPollTimer = null;
+  let perfPollTimer = null;
 
   const imageCache = new Map(); // event_id -> {version, src}
 
@@ -166,6 +169,58 @@
     }
   }
 
+
+  function renderPerf(values) {
+    if (!perfCtx || !perfCanvas) return;
+    const w = perfCanvas.width;
+    const h = perfCanvas.height;
+    perfCtx.clearRect(0, 0, w, h);
+    perfCtx.fillStyle = '#0b1220';
+    perfCtx.fillRect(0, 0, w, h);
+
+    if (!values || !values.length) {
+      perfCtx.fillStyle = '#9ca3af';
+      perfCtx.fillText('暂无耗时数据', 12, 20);
+      return;
+    }
+
+    const minV = Math.min(...values);
+    const maxV = Math.max(...values);
+    const span = Math.max(0.001, maxV - minV);
+
+    perfCtx.strokeStyle = '#1f2937';
+    perfCtx.beginPath();
+    perfCtx.moveTo(40, 10);
+    perfCtx.lineTo(40, h - 25);
+    perfCtx.lineTo(w - 10, h - 25);
+    perfCtx.stroke();
+
+    perfCtx.strokeStyle = '#22c55e';
+    perfCtx.beginPath();
+    values.forEach((v, i) => {
+      const x = 40 + (i / Math.max(1, values.length - 1)) * (w - 50);
+      const y = (h - 25) - ((v - minV) / span) * (h - 40);
+      if (i === 0) perfCtx.moveTo(x, y);
+      else perfCtx.lineTo(x, y);
+    });
+    perfCtx.stroke();
+
+    perfCtx.fillStyle = '#9ca3af';
+    perfCtx.fillText(`min: ${minV.toFixed(4)}s`, 45, 15);
+    perfCtx.fillText(`max: ${maxV.toFixed(4)}s`, 180, 15);
+    perfCtx.fillText(`points: ${values.length}`, 320, 15);
+  }
+
+  async function queryPerf() {
+    if (!perfCanvas) return;
+    try {
+      const resp = await fetch('/api/perf/processor');
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) return;
+      renderPerf(data.values || []);
+    } catch (_e) {}
+  }
+
   function updatePager() {
     const page = Math.floor(offset / limit) + 1;
     const pages = Math.max(1, Math.ceil(total / limit));
@@ -237,12 +292,15 @@
   document.getElementById('closeImageBtn').addEventListener('click', closeImage);
 
   statusPollTimer = setInterval(queryStatus, 1000);
+  perfPollTimer = setInterval(queryPerf, 1000);
   restartAutoRefresh();
   queryLogs();
   queryStatus();
+  queryPerf();
 
   window.addEventListener('beforeunload', () => {
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
     if (statusPollTimer) clearInterval(statusPollTimer);
+    if (perfPollTimer) clearInterval(perfPollTimer);
   });
 })();

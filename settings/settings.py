@@ -1,3 +1,4 @@
+from collections import deque
 import hashlib
 
 dir_path=None
@@ -64,3 +65,16 @@ def set_recognition_fps(value):
     refresh_timing_by_fps()
 
 refresh_timing_by_fps()
+
+perf_elapsed_queue = deque(maxlen=1000)
+
+
+def push_elapsed(value):
+    try:
+        perf_elapsed_queue.append(float(value))
+    except Exception:
+        pass
+
+
+def get_elapsed_series():
+    return list(perf_elapsed_queue)
