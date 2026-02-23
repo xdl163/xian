@@ -536,11 +536,9 @@ def download_recording(video_id: int, name: str):
         return jsonify({"error": "not found"}), 404
     safe_name = secure_filename(name)
     try:
-        path = recording_manager.get_prepared_download(video, safe_name)
+        path = recording_manager.get_or_build_download(video, safe_name)
     except FileNotFoundError:
         return jsonify({"error": "not found"}), 404
-    except RuntimeError:
-        return jsonify({"error": "not_ready"}), 409
     return send_file(path, as_attachment=True, download_name=path.name)
 
 

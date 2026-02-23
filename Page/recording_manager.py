@@ -241,7 +241,6 @@ class RecordingManager:
             }
 
     def get_prepared_download(self, video, name: str) -> Path:
-        key = (self.camera_dir_name(video), name)
         rec_dir = self.root / self.camera_dir_name(video) / name
         if not rec_dir.exists():
             raise FileNotFoundError(name)
@@ -249,3 +248,13 @@ class RecordingManager:
         if not out.exists():
             raise RuntimeError("not_ready")
         return out
+
+    def get_or_build_download(self, video, name: str) -> Path:
+        rec_dir = self.root / self.camera_dir_name(video) / name
+        if not rec_dir.exists():
+            raise FileNotFoundError(name)
+        out = rec_dir / f"{name}_download.zip"
+        if out.exists():
+            return out
+        # 兼容兜底：若前端未走 prepare/status，直接同步打包并返回，避免 409
+        return self._build_download_zip(rec_dir, name)
