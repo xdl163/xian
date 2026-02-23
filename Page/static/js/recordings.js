@@ -15,11 +15,41 @@
     });
   }
 
+  async function waitDownloadReady(name) {
+    const timeoutMs = 10 * 60 * 1000;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const statusResp = await fetch(`/api/video/${videoId}/recordings/${encodeURIComponent(name)}/download/status`);
+      const statusData = await statusResp.json().catch(() => ({}));
+      if (!statusResp.ok) {
+        throw new Error(statusData.error || 'status_failed');
+      }
+      if (statusData.ready) return;
+      if (statusData.status === 'error') throw new Error(statusData.error || 'compress_failed');
+      setMsg(`压缩中... (${statusData.status || 'running'})`);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    throw new Error('compress_timeout');
+  }
+
   tbody.addEventListener('click', async (e) => {
     const name = e.target.dataset.name;
     if (!name) return;
     if (e.target.classList.contains('dl')) {
-      window.location.href = `/api/video/${videoId}/recordings/${encodeURIComponent(name)}/download`;
+      e.target.disabled = true;
+      try {
+        setMsg('开始压缩...');
+        const prepareResp = await fetch(`/api/video/${videoId}/recordings/${encodeURIComponent(name)}/download/prepare`, { method: 'POST' });
+        const prepareData = await prepareResp.json().catch(() => ({}));
+        if (!prepareResp.ok) throw new Error(prepareData.error || 'prepare_failed');
+        await waitDownloadReady(name);
+        setMsg('压缩完成，开始下载');
+        window.location.href = `/api/video/${videoId}/recordings/${encodeURIComponent(name)}/download`;
+      } catch (err) {
+        setMsg(`下载失败: ${err}`, true);
+      } finally {
+        e.target.disabled = false;
+      }
       return;
     }
     if (e.target.classList.contains('del')) {

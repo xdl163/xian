@@ -31,7 +31,6 @@ class RecordingSession:
         self.zips_dir.mkdir(parents=True, exist_ok=True)
 
         self._stop = threading.Event()
-        self._lock = threading.Lock()
         self._idx = 0
         self._saved = 0
         self._started_at = time.time()
@@ -131,11 +130,14 @@ class RecordingSession:
 
 
 class RecordingManager:
-    def __init__(self, root: str = "recordings"):
-        self.root = Path(root)
+    def __init__(self, root: str | None = None):
+        if root is None:
+            root = str(Path(__file__).resolve().parent.parent / "recordings")
+        self.root = Path(root).resolve()
         self.root.mkdir(parents=True, exist_ok=True)
         self._lock = threading.Lock()
         self._sessions: dict[int, RecordingSession] = {}
+        self._download_tasks: dict[tuple[str, str], dict] = {}
 
     @staticmethod
     def camera_dir_name(video) -> str:
@@ -179,10 +181,7 @@ class RecordingManager:
             raise FileNotFoundError(name)
         shutil.rmtree(target)
 
-    def build_download_zip(self, video, name: str) -> Path:
-        rec_dir = self.root / self.camera_dir_name(video) / name
-        if not rec_dir.exists():
-            raise FileNotFoundError(name)
+    def _build_download_zip(self, rec_dir: Path, name: str) -> Path:
         out = rec_dir / f"{name}_download.zip"
         if out.exists():
             out.unlink()
@@ -191,6 +190,62 @@ class RecordingManager:
                 if p.name == out.name:
                     continue
                 zf.write(p, arcname=f"zips/{p.name}")
-            for p in sorted((rec_dir / "images").glob("*.jpg")):
-                zf.write(p, arcname=f"images/{p.name}")
+            images_dir = rec_dir / "images"
+            if images_dir.exists():
+                for p in sorted(images_dir.glob("*.jpg")):
+                    zf.write(p, arcname=f"images/{p.name}")
+        return out
+
+    def prepare_download_async(self, video, name: str) -> str:
+        cam = self.camera_dir_name(video)
+        key = (cam, name)
+        rec_dir = self.root / cam / name
+        if not rec_dir.exists():
+            raise FileNotFoundError(name)
+        with self._lock:
+            task = self._download_tasks.get(key)
+            if task and task.get("status") in {"pending", "running"}:
+                return task["task_id"]
+            task_id = f"{cam}:{name}"
+            task = {"task_id": task_id, "status": "pending", "error": "", "output": ""}
+            self._download_tasks[key] = task
+
+        def _runner():
+            with self._lock:
+                self._download_tasks[key]["status"] = "running"
+            try:
+                out = self._build_download_zip(rec_dir, name)
+                with self._lock:
+                    self._download_tasks[key]["status"] = "done"
+                    self._download_tasks[key]["output"] = str(out)
+            except Exception as e:
+                with self._lock:
+                    self._download_tasks[key]["status"] = "error"
+                    self._download_tasks[key]["error"] = str(e)
+
+        threading.Thread(target=_runner, daemon=True).start()
+        return task_id
+
+    def download_status(self, video, name: str) -> dict:
+        key = (self.camera_dir_name(video), name)
+        with self._lock:
+            task = self._download_tasks.get(key)
+            if not task:
+                return {"status": "idle", "ready": False}
+            status = task.get("status", "idle")
+            return {
+                "status": status,
+                "ready": status == "done",
+                "error": task.get("error", ""),
+                "task_id": task.get("task_id", ""),
+            }
+
+    def get_prepared_download(self, video, name: str) -> Path:
+        key = (self.camera_dir_name(video), name)
+        rec_dir = self.root / self.camera_dir_name(video) / name
+        if not rec_dir.exists():
+            raise FileNotFoundError(name)
+        out = rec_dir / f"{name}_download.zip"
+        if not out.exists():
+            raise RuntimeError("not_ready")
         return out

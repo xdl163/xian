@@ -507,15 +507,40 @@ def stop_recording(video_id: int):
     return jsonify({"ok": True})
 
 
+@app.post("/api/video/<int:video_id>/recordings/<name>/download/prepare")
+def prepare_recording_download(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
+    try:
+        task_id = recording_manager.prepare_download_async(video, safe_name)
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True, "task_id": task_id})
+
+
+@app.get("/api/video/<int:video_id>/recordings/<name>/download/status")
+def recording_download_status(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
+    return jsonify(recording_manager.download_status(video, safe_name))
+
+
 @app.get("/api/video/<int:video_id>/recordings/<name>/download")
 def download_recording(video_id: int, name: str):
     video = _video_by_id(video_id)
     if video is None:
         return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
     try:
-        path = recording_manager.build_download_zip(video, secure_filename(name))
+        path = recording_manager.get_prepared_download(video, safe_name)
     except FileNotFoundError:
         return jsonify({"error": "not found"}), 404
+    except RuntimeError:
+        return jsonify({"error": "not_ready"}), 409
     return send_file(path, as_attachment=True, download_name=path.name)
 
 
