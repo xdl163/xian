@@ -96,13 +96,11 @@ class VideoProcessorThread(threading.Thread):
                         continue
 
                     
-                    # kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (int(7/640*video.frame_width), 1))
 
                     frame = video.next_frame()
                     if frame is None:           # 无帧
                         frame_null_num += 1
                         continue
-                    # frame_clean=frame.copy()
 
 
                     if not getattr(video, "enable_recognition", True):
@@ -148,26 +146,6 @@ class VideoProcessorThread(threading.Thread):
                     x1 = min(right,  frame.shape[1] - 1)
                     y1 = min(bottom, frame.shape[0] - 1)
                     roi = frame[y0:y1, x0:x1]
-
-
-                    # ————————————— 3. HSV → 二值化（两张掩码） —————————————
-                    # hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
-
-                    # base_mask = cv2.inRange(hsv, video.hsv_lower, video.hsv_upper)
-
-                    # base_mask2 = cv2.dilate(base_mask, kernel, 1)
-
-                    # # 3-2 细条纹过滤掩码（new_mask）
-                    # contours, _ = cv2.findContours(base_mask2, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-                    # strip_mask = np.zeros_like(base_mask2)
-                    # for cnt in contours:
-                    #     x, y, w, h_cnt = cv2.boundingRect(cnt)
-                    #     if w < settings.point_max_size:
-                    #         cv2.drawContours(strip_mask, [cnt], -1, 255, -1)
-
-                    # strip_mask = cv2.erode(strip_mask, kernel, 1)
-
-                    # ————————————— 4. 初始化 —————————————
 
                     # ————————————— 3. 用 PT 模型判定每个点位（替代二值化/条纹过滤） —————————————
 
@@ -215,7 +193,6 @@ class VideoProcessorThread(threading.Thread):
 
                     # 批量推理：返回 [0/1]，1=light
                     if patches:
-                        print(video.id)
                         pred_list = img_cls_onnx(patches, threshold=float(getattr(settings, "model_threshold", 0.9)), verbose=False)  # 这里的 0.5 你也可以做成 settings.xxx
                         for k, i in enumerate(idx_map):
                             hit_model[i] = (pred_list[k] == 1)
@@ -249,7 +226,6 @@ class VideoProcessorThread(threading.Thread):
                                         ((err == 1) | (err == settings.ERROR_WIN) |
                                          (cor == 1) | (cor == settings.CORRECT_WIN)))[0]
 
-                    # print(video.id,need_chk)
                     if need_chk.size and len(self.detect_errors(video, frame, mast=True))!=0:
                         print('异常失败')
                         err[need_chk] = 0
@@ -270,7 +246,6 @@ class VideoProcessorThread(threading.Thread):
                             ~video.xian_allow_light
                         ))
                     )[0]
-                    # print(light_idx,light_piao_idx,video.xian_allow_light)
                     # 更新持久状态
                     lit[broke_idx] = False
                     lit[light_idx] = True

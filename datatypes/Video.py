@@ -257,8 +257,6 @@ class Video:
                 time.sleep(settings.fetch_sleep_idle)
                 continue
 
-            # 即使识别线程停用/阻塞，也要更新最新画面给录制与预览使用
-            self.this_frame = frame.copy()
             with self._buf_lock:
                 self._frame_buffer.append(frame)
             time.sleep(settings.fetch_sleep_idle)
