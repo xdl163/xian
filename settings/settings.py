@@ -54,4 +54,13 @@ def refresh_timing_by_fps():
     fetch_sleep_idle=max(0.01,base*0.5)
     fetch_sleep_full=max(0.05,base)
 
+
+def set_recognition_fps(value):
+    global recognition_fps
+    try:
+        recognition_fps = max(0.1, float(value))
+    except Exception:
+        recognition_fps = 3.0
+    refresh_timing_by_fps()
+
 refresh_timing_by_fps()

@@ -247,8 +247,7 @@ def _apply_runtime_from_config(config: dict[str, Any]) -> None:
     crop = config.get("crop_size", [40, 40])
     settings.crap_w = max(1, int(crop[0]) // 2)
     settings.crap_h = max(1, int(crop[1]) // 2)
-    settings.recognition_fps = max(0.1, float(config.get("recognition_fps", getattr(settings, "recognition_fps", 3.0))))
-    settings.refresh_timing_by_fps()
+    settings.set_recognition_fps(config.get("recognition_fps", getattr(settings, "recognition_fps", 3.0)))
 
     for video in settings.video_list:
         old_hist = list(getattr(video, "history_queue", []))

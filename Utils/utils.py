@@ -109,8 +109,7 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     settings.crap_w=int(crop_size[0]/2)
     settings.crap_h=int(crop_size[1]/2)
     settings.BUF_SIZE=BUF_SIZE
-    settings.recognition_fps=float(recognition_fps)
-    settings.refresh_timing_by_fps()
+    settings.set_recognition_fps(recognition_fps)
 
     settings.db_host = db_host
     settings.db_port = db_port
