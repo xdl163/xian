@@ -27,6 +27,8 @@
   let autoRefreshTimer = null;
   let statusPollTimer = null;
   let perfPollTimer = null;
+  let perfValues = [];
+  let perfHoverIndex = null;
 
   const imageCache = new Map(); // event_id -> {version, src}
 
@@ -170,7 +172,13 @@
   }
 
 
-  function renderPerf(values) {
+  function perfPointXY(i, len, value, minV, span, w, h) {
+    const x = 40 + (i / Math.max(1, len - 1)) * (w - 50);
+    const y = (h - 25) - ((value - minV) / span) * (h - 40);
+    return { x, y };
+  }
+
+  function renderPerf(values, hoverIndex = null) {
     if (!perfCtx || !perfCanvas) return;
     const w = perfCanvas.width;
     const h = perfCanvas.height;
@@ -198,10 +206,9 @@
     perfCtx.strokeStyle = '#22c55e';
     perfCtx.beginPath();
     values.forEach((v, i) => {
-      const x = 40 + (i / Math.max(1, values.length - 1)) * (w - 50);
-      const y = (h - 25) - ((v - minV) / span) * (h - 40);
-      if (i === 0) perfCtx.moveTo(x, y);
-      else perfCtx.lineTo(x, y);
+      const pt = perfPointXY(i, values.length, v, minV, span, w, h);
+      if (i === 0) perfCtx.moveTo(pt.x, pt.y);
+      else perfCtx.lineTo(pt.x, pt.y);
     });
     perfCtx.stroke();
 
@@ -209,6 +216,30 @@
     perfCtx.fillText(`min: ${minV.toFixed(4)}s`, 45, 15);
     perfCtx.fillText(`max: ${maxV.toFixed(4)}s`, 180, 15);
     perfCtx.fillText(`points: ${values.length}`, 320, 15);
+
+    if (hoverIndex !== null && hoverIndex >= 0 && hoverIndex < values.length) {
+      const val = values[hoverIndex];
+      const pt = perfPointXY(hoverIndex, values.length, val, minV, span, w, h);
+
+      perfCtx.fillStyle = '#f59e0b';
+      perfCtx.beginPath();
+      perfCtx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      perfCtx.fill();
+
+      const tip1 = `idx: ${hoverIndex + 1}/${values.length}`;
+      const tip2 = `elapsed: ${val.toFixed(4)}s`;
+      const textW = Math.max(perfCtx.measureText(tip1).width, perfCtx.measureText(tip2).width) + 14;
+      const tipX = Math.min(w - textW - 6, Math.max(6, pt.x + 10));
+      const tipY = Math.max(6, pt.y - 36);
+
+      perfCtx.fillStyle = 'rgba(15,23,42,0.92)';
+      perfCtx.fillRect(tipX, tipY, textW, 30);
+      perfCtx.strokeStyle = '#334155';
+      perfCtx.strokeRect(tipX, tipY, textW, 30);
+      perfCtx.fillStyle = '#e5e7eb';
+      perfCtx.fillText(tip1, tipX + 6, tipY + 12);
+      perfCtx.fillText(tip2, tipX + 6, tipY + 25);
+    }
   }
 
   async function queryPerf() {
@@ -217,7 +248,9 @@
       const resp = await fetch('/api/perf/processor');
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) return;
-      renderPerf(data.values || []);
+      perfValues = Array.isArray(data.values) ? data.values : [];
+      if (perfHoverIndex !== null && perfHoverIndex >= perfValues.length) perfHoverIndex = perfValues.length - 1;
+      renderPerf(perfValues, perfHoverIndex);
     } catch (_e) {}
   }
 
@@ -297,6 +330,23 @@
   queryLogs();
   queryStatus();
   queryPerf();
+
+
+  if (perfCanvas) {
+    perfCanvas.addEventListener('mousemove', (e) => {
+      if (!perfValues.length) return;
+      const rect = perfCanvas.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const w = perfCanvas.width;
+      const idx = Math.max(0, Math.min(perfValues.length - 1, Math.round(((x - 40) / Math.max(1, (w - 50))) * Math.max(1, perfValues.length - 1))));
+      perfHoverIndex = idx;
+      renderPerf(perfValues, perfHoverIndex);
+    });
+    perfCanvas.addEventListener('mouseleave', () => {
+      perfHoverIndex = null;
+      renderPerf(perfValues, null);
+    });
+  }
 
   window.addEventListener('beforeunload', () => {
     if (autoRefreshTimer) clearInterval(autoRefreshTimer);
