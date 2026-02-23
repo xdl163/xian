@@ -100,12 +100,30 @@
 
   async function fetchFrame(id) { const resp = await fetch(`/api/video/${id}/frame`); if (!resp.ok) return null; const data = await resp.json(); const img = new Image(); await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = `data:image/png;base64,${data.image}`; }); return { ...data, img }; }
   async function fetchRecognition(id) { const resp = await fetch(`/api/video/${id}/recognition`); if (!resp.ok) return null; return resp.json(); }
+  async function fetchRecordingState(id) {
+    const resp = await fetch(`/api/video/${id}/recordings`);
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    return !!data.recording;
+  }
 
   function drawBoxes(ctx, w, h, rec) { if (!rec || !Array.isArray(rec.points)) return; for (const p of rec.points) { ctx.strokeStyle = p.is_light ? '#22c55e' : '#ef4444'; ctx.lineWidth = 2; ctx.strokeRect(p.x1, p.y1, p.x2 - p.x1, p.y2 - p.y1); } }
   function redraw() { if (!latestFrame) return; fctx.clearRect(0, 0, frameCanvas.width, frameCanvas.height); fctx.drawImage(latestFrame, 0, 0, frameCanvas.width, frameCanvas.height); octx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height); if (drawToggle.checked) drawBoxes(octx, overlayCanvas.width, overlayCanvas.height, latestRecognition); }
 
   async function pollPreview() { if (currentVideoId < 0) return; try { const data = await fetchFrame(currentVideoId); if (!data) return; if (frameCanvas.width !== data.width || frameCanvas.height !== data.height) syncSize(data.width, data.height); latestFrame = data.img; redraw(); } catch (_e) {} }
   async function pollRecognition() { if (currentVideoId < 0) return; try { latestRecognition = await fetchRecognition(currentVideoId); redraw(); } catch (_e) {} }
+  async function syncRecordingButtonsFromBackend() {
+    const buttons = Array.from(document.querySelectorAll('.record-btn'));
+    await Promise.all(buttons.map(async (btn) => {
+      const id = Number(btn.dataset.id);
+      if (!id) return;
+      try {
+        const recording = await fetchRecordingState(id);
+        if (recording === null) return;
+        btn.textContent = recording ? '结束录制' : '开始录制';
+      } catch (_e) {}
+    }));
+  }
 
   async function toggleRecognition(videoId, enabled) {
     const resp = await fetch(`/api/video/${videoId}/recognition-enabled`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
@@ -156,7 +174,9 @@
   drawToggle.addEventListener('change', redraw);
   modalMask.addEventListener('click', (e) => { if (e.target === modalMask) closeModal(); });
   setActiveId();
+  syncRecordingButtonsFromBackend();
   setInterval(pollPreview, 250);
   setInterval(pollRecognition, 250);
+  setInterval(syncRecordingButtonsFromBackend, 2000);
   pollPreview(); pollRecognition();
 })();
