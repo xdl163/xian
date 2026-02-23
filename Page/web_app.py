@@ -42,6 +42,47 @@ def _read_yaml(path: str) -> dict[str, Any]:
         return {}
 
 
+def _plc_conf_path() -> Path:
+    cfg = _read_yaml(settings.config_path)
+    plc_yaml = str(cfg.get("PLC_yaml", "PLC_add.yaml") or "PLC_add.yaml")
+    return Path(plc_yaml)
+
+
+def _read_plc_default_map() -> dict[str, list[int]]:
+    plc_path = _plc_conf_path()
+    data = _read_yaml(str(plc_path))
+    videos = data.get("videos", {}) if isinstance(data, dict) else {}
+    result: dict[str, list[int]] = {}
+    if not isinstance(videos, dict):
+        return result
+    for key, value in videos.items():
+        try:
+            key_str = str(key)
+            if isinstance(value, list) and len(value) >= 6:
+                result[key_str] = [int(v) for v in value[:6]]
+        except Exception:
+            continue
+    return result
+
+
+def _normalize_plc_list(value: Any) -> list[int] | None:
+    if not isinstance(value, list) or len(value) < 6:
+        return None
+    try:
+        return [int(v) for v in value[:6]]
+    except Exception:
+        return None
+
+
+def _resolve_video_plc(video) -> list[int]:
+    data = _read_yaml(video.yaml_path)
+    camera_plc = _normalize_plc_list(data.get("plc"))
+    if camera_plc is not None:
+        return camera_plc
+    defaults = _read_plc_default_map()
+    return defaults.get(str(getattr(video, "video_id", "")), [0, 0, 0, 0, 0, 0])
+
+
 def _image_version(path: str) -> str:
     try:
         st = os.stat(path)
@@ -424,11 +465,14 @@ def add_camera():
 
     video_type = str(payload.get("video_type", "http") or "http").strip()
     video_url = str(payload.get("video_url", "")).strip()
+    video_no = str(payload.get("video_id", "")).strip()
     if not video_url:
         return jsonify({"error": "video_url_required"}), 400
 
+    default_plc = _read_plc_default_map().get(video_no, [0, 0, 0, 0, 0, 0])
+
     camera_yaml = {
-        "video_id": str(payload.get("video_id", "")),
+        "video_id": video_no,
         "add_type": str(payload.get("add_type", "")),
         "id": vid,
         "video_type": video_type,
@@ -437,6 +481,7 @@ def add_camera():
         "yarn": {},
         "laser_emitter": [],
         "laser_wall": [],
+        "plc": default_plc,
         "enable_recognition": True,
     }
 
@@ -456,6 +501,54 @@ def add_camera():
 
     with _state_lock:
         settings.video_list.append(video)
+    return jsonify({"ok": True})
+
+
+@app.get("/api/plc/settings")
+def get_plc_settings():
+    if not _check_password(request.args.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    rows = []
+    for video in settings.video_list:
+        plc = _resolve_video_plc(video)
+        rows.append({
+            "id": int(video.id),
+            "video_id": str(getattr(video, "video_id", "") or ""),
+            "add_type": str(getattr(video, "add_type", "") or ""),
+            "plc": plc,
+        })
+    return jsonify({"rows": rows})
+
+
+@app.post("/api/plc/settings")
+def save_plc_settings():
+    payload = request.get_json(force=True, silent=True) or {}
+    if not _check_password(payload.get("password", "")):
+        return jsonify({"error": "password_error"}), 403
+
+    video_id = _safe_int(payload.get("id"), None)
+    plc = _normalize_plc_list(payload.get("plc"))
+    if video_id is None:
+        return jsonify({"error": "id_required"}), 400
+    if plc is None:
+        return jsonify({"error": "plc_invalid"}), 400
+
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+
+    data = _read_yaml(video.yaml_path)
+    data["plc"] = plc
+    with open(video.yaml_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+    video.plc = plc
+    if getattr(settings, "modbusServer", None) is not None:
+        try:
+            settings.modbusServer.com_cfg[int(video.video_id)] = plc
+        except Exception:
+            pass
     return jsonify({"ok": True})
 
 
@@ -689,6 +782,14 @@ def settings_page():
     if not _check_password(password):
         return Response("password error", status=403)
     return render_template("settings.html", password=password)
+
+
+@app.get("/plc-settings")
+def plc_settings_page():
+    password = request.args.get("password", "")
+    if not _check_password(password):
+        return Response("password error", status=403)
+    return render_template("plc_settings.html", password=password)
 
 
 @app.get("/logs")

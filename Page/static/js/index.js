@@ -170,12 +170,14 @@
   }
 
   async function openSettingsPage() { const password = await askPassword(); if (!password) return; window.location.href = `/settings?password=${encodeURIComponent(password)}`; }
+  async function openPlcSettingsPage() { const password = await askPassword(); if (!password) return; window.location.href = `/plc-settings?password=${encodeURIComponent(password)}`; }
   function openLogsPage() { window.location.href = '/logs'; }
   async function openAnnotatePage(videoId) { const password = await askPassword(); if (!password) return; window.location.href = `/annotate/${videoId}?password=${encodeURIComponent(password)}`; }
   function openRecordingsPage(videoId) { window.location.href = `/recordings/${videoId}`; }
 
   document.getElementById('openSettingsBtn').addEventListener('click', openSettingsPage);
   document.getElementById('openLogsBtn').addEventListener('click', openLogsPage);
+  document.getElementById('openPlcSettingsBtn').addEventListener('click', openPlcSettingsPage);
   document.getElementById('addCameraBtn').addEventListener('click', addCamera);
 
   document.getElementById('videoTable').addEventListener('click', async (e) => {
