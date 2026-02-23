@@ -19,6 +19,11 @@
       BUF_SIZE: +document.getElementById('BUF_SIZE').value,
       HISTORY_LEN: +document.getElementById('HISTORY_LEN').value,
       model_threshold: +document.getElementById('model_threshold').value,
+      crop_size: [
+        +document.getElementById('roi_w').value,
+        +document.getElementById('roi_h').value,
+      ],
+      recognition_fps: +document.getElementById('recognition_fps').value,
     };
   }
 
@@ -30,7 +35,9 @@
     }
     const data = await resp.json();
     ['save', 'save_csv', 'save_img'].forEach((k) => { document.getElementById(k).checked = !!data[k]; });
-    ['db_save_day', 'error_win', 'correct_win', 'BUF_SIZE', 'HISTORY_LEN', 'model_threshold'].forEach((k) => { document.getElementById(k).value = data[k]; });
+    ['db_save_day', 'error_win', 'correct_win', 'BUF_SIZE', 'HISTORY_LEN', 'model_threshold', 'recognition_fps'].forEach((k) => { document.getElementById(k).value = data[k]; });
+    document.getElementById('roi_w').value = (data.crop_size || [40,40])[0];
+    document.getElementById('roi_h').value = (data.crop_size || [40,40])[1];
   }
 
   document.getElementById('saveBtn').addEventListener('click', async () => {

@@ -10,7 +10,7 @@ from typing import Any
 import cv2
 import numpy as np
 import yaml
-from flask import Flask, Response, jsonify, render_template, request
+from flask import Flask, Response, jsonify, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 import settings
@@ -18,11 +18,13 @@ from Utils import load_config
 from detect_xian import VideoProcessorThread
 from light_cls.light_cls import reload_model
 from Page import load_video_yaml
+from Page.recording_manager import RecordingManager, RecordingOptions
 
 app = Flask(__name__)
 _state_lock = threading.Lock()
 _event_image_cache_lock = threading.Lock()
 _event_image_cache: dict[str, dict[str, Any]] = {}
+recording_manager = RecordingManager()
 
 
 def _video_by_id(video_id: int):
@@ -198,6 +200,7 @@ def _save_annotation(video, payload: dict[str, Any]) -> None:
     data_to_save["video_type"] = meta.get("video_type", "")
     data_to_save["video_url"] = meta.get("video_url", "")
     data_to_save["hsv_range"] = hsv_range
+    data_to_save["enable_recognition"] = bool(getattr(video, "enable_recognition", True))
 
     with open(video.yaml_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(data_to_save, f, allow_unicode=True)
@@ -241,6 +244,10 @@ def _apply_runtime_from_config(config: dict[str, Any]) -> None:
     settings.HISTORY_LEN = int(config.get("HISTORY_LEN", settings.HISTORY_LEN))
     settings.model_threshold = float(config.get("model_threshold", getattr(settings, "model_threshold", 0.9)))
     settings.model_path = str(config.get("model_path", getattr(settings, "model_path", "model_int8.onnx")))
+    crop = config.get("crop_size", [40, 40])
+    settings.crap_w = max(1, int(crop[0]) // 2)
+    settings.crap_h = max(1, int(crop[1]) // 2)
+    settings.set_recognition_fps(config.get("recognition_fps", getattr(settings, "recognition_fps", 3.0)))
 
     for video in settings.video_list:
         old_hist = list(getattr(video, "history_queue", []))
@@ -288,9 +295,29 @@ def list_videos():
             "id": int(video.id),
             "video_id": str(getattr(video, "video_id", "") or ""),
             "add_type": str(getattr(video, "add_type", "") or ""),
+            "enable_recognition": bool(getattr(video, "enable_recognition", True)),
         })
     return jsonify({"videos": rows})
 
+
+
+
+@app.get("/api/runtime")
+def get_runtime_info():
+    return jsonify({
+        "recognition_fps": float(getattr(settings, "recognition_fps", 3.0) or 3.0),
+        "frame_interval": float(settings.get_frame_interval()),
+    })
+
+
+@app.get("/api/perf/processor")
+def get_processor_perf():
+    values = settings.get_elapsed_series()
+    return jsonify({
+        "values": values,
+        "count": len(values),
+        "ts": time.time(),
+    })
 
 @app.get("/api/settings")
 def get_settings():
@@ -309,6 +336,8 @@ def get_settings():
         "HISTORY_LEN": int(cfg.get("HISTORY_LEN", settings.HISTORY_LEN)),
         "model_threshold": float(cfg.get("model_threshold", getattr(settings, "model_threshold", 0.9))),
         "model_path": str(cfg.get("model_path", getattr(settings, "model_path", "model_int8.onnx"))),
+        "crop_size": cfg.get("crop_size", [40, 40]),
+        "recognition_fps": float(cfg.get("recognition_fps", getattr(settings, "recognition_fps", 3.0))),
     })
 
 
@@ -319,12 +348,14 @@ def save_settings():
         return jsonify({"error": "password_error"}), 403
 
     cfg = _read_yaml(settings.config_path)
-    for k in ["save", "save_csv", "save_img", "db_save_day", "error_win", "correct_win", "BUF_SIZE", "HISTORY_LEN", "model_threshold", "model_path"]:
+    for k in ["save", "save_csv", "save_img", "db_save_day", "error_win", "correct_win", "BUF_SIZE", "HISTORY_LEN", "model_threshold", "model_path", "crop_size", "recognition_fps"]:
         if k in payload:
             cfg[k] = payload[k]
     with open(settings.config_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
     _apply_runtime_from_config(cfg)
+    if settings.video_thread is not None:
+        settings.video_thread.interval = settings.get_frame_interval()
     try:
         reload_model(settings.model_path)
     except Exception:
@@ -406,6 +437,7 @@ def add_camera():
         "yarn": {},
         "laser_emitter": [],
         "laser_wall": [],
+        "enable_recognition": True,
     }
 
     yaml_dir = Path(getattr(settings, "dir_path", "") or "")
@@ -426,6 +458,118 @@ def add_camera():
         settings.video_list.append(video)
     return jsonify({"ok": True})
 
+
+
+
+@app.post("/api/video/<int:video_id>/recognition-enabled")
+def set_video_recognition_enabled(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    payload = request.get_json(force=True, silent=True) or {}
+    enabled = bool(payload.get("enabled", True))
+    video.enable_recognition = enabled
+    data = _read_yaml(video.yaml_path)
+    data["enable_recognition"] = enabled
+    with open(video.yaml_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+    return jsonify({"ok": True, "enabled": enabled})
+
+
+@app.get("/recordings/<int:video_id>")
+def recordings_page(video_id: int):
+    if _video_by_id(video_id) is None:
+        return Response("not found", status=404)
+    return render_template("recordings.html", video_id=video_id)
+
+
+@app.get("/api/video/<int:video_id>/recordings")
+def list_recordings(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"rows": recording_manager.list_recordings(video), "recording": recording_manager.is_recording(video_id)})
+
+
+@app.post("/api/video/<int:video_id>/recordings/start")
+def start_recording(video_id: int):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    payload = request.get_json(force=True, silent=True) or {}
+    name = secure_filename(str(payload.get("name", "")).strip())
+    if not name:
+        return jsonify({"error": "name_required"}), 400
+    max_hours_raw = payload.get("max_hours", None)
+    max_hours = None
+    if max_hours_raw not in [None, ""]:
+        max_hours = float(max_hours_raw)
+    opts = RecordingOptions(
+        name=name,
+        save_roi=bool(payload.get("save_roi", True)),
+        every_n_frames=max(1, int(payload.get("every_n_frames", 1))),
+        zip_minutes=max(0.0, float(payload.get("zip_minutes", 10))),
+        max_hours=max_hours,
+        draw_boxes=bool(payload.get("draw_boxes", True)),
+    )
+    try:
+        recording_manager.start(video, opts)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    return jsonify({"ok": True})
+
+
+@app.post("/api/video/<int:video_id>/recordings/stop")
+def stop_recording(video_id: int):
+    recording_manager.stop(video_id)
+    return jsonify({"ok": True})
+
+
+@app.post("/api/video/<int:video_id>/recordings/<name>/download/prepare")
+def prepare_recording_download(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
+    try:
+        task_id = recording_manager.prepare_download_async(video, safe_name)
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True, "task_id": task_id})
+
+
+@app.get("/api/video/<int:video_id>/recordings/<name>/download/status")
+def recording_download_status(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
+    return jsonify(recording_manager.download_status(video, safe_name))
+
+
+@app.get("/api/video/<int:video_id>/recordings/<name>/download")
+def download_recording(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    safe_name = secure_filename(name)
+    try:
+        path = recording_manager.get_or_build_download(video, safe_name)
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    return send_file(path, as_attachment=True, download_name=path.name)
+
+
+@app.delete("/api/video/<int:video_id>/recordings/<name>")
+def delete_recording(video_id: int, name: str):
+    video = _video_by_id(video_id)
+    if video is None:
+        return jsonify({"error": "not found"}), 404
+    try:
+        recording_manager.delete_recording(video, secure_filename(name))
+    except FileNotFoundError:
+        return jsonify({"error": "not found"}), 404
+    return jsonify({"ok": True})
 
 @app.post("/api/verify-password")
 def verify_password():

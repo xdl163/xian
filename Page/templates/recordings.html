@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>录制列表</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="panel">
+      <h3>摄像头 {{ video_id }} 录制列表</h3>
+      <table class="table" id="recTable">
+        <thead><tr><th>名称</th><th>操作</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="btn-row">
+        <a class="btn-link" href="/">返回</a>
+      </div>
+      <p id="msg" class="tip"></p>
+    </section>
+  </main>
+  <script>window.REC_VIDEO_ID = {{ video_id }};</script>
+  <script src="{{ url_for('static', filename='js/recordings.js') }}"></script>
+</body>
+</html>

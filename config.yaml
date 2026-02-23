@@ -31,3 +31,5 @@ kernel_ksize2:
 - 100
 model_threshold: 0.5
 model_path: int8_scripted.pt
+
+recognition_fps: 3.0

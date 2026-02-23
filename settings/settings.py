@@ -1,3 +1,4 @@
+from collections import deque
 import hashlib
 
 dir_path=None
@@ -39,3 +40,41 @@ config_path=None
 passwd=hashlib.sha256("123457".encode('utf-8')).hexdigest()
 
 license_data=None
+recognition_fps=3.0
+fetch_sleep_idle=0.2
+fetch_sleep_full=0.5
+
+
+def get_frame_interval():
+    fps=max(float(recognition_fps),0.1)
+    return 1.0/fps
+
+def refresh_timing_by_fps():
+    global fetch_sleep_idle,fetch_sleep_full
+    base=get_frame_interval()
+    fetch_sleep_idle=max(0.01,base*0.5)
+    fetch_sleep_full=max(0.05,base)
+
+
+def set_recognition_fps(value):
+    global recognition_fps
+    try:
+        recognition_fps = max(0.1, float(value))
+    except Exception:
+        recognition_fps = 3.0
+    refresh_timing_by_fps()
+
+refresh_timing_by_fps()
+
+perf_elapsed_queue = deque(maxlen=1000)
+
+
+def push_elapsed(value):
+    try:
+        perf_elapsed_queue.append(float(value))
+    except Exception:
+        pass
+
+
+def get_elapsed_series():
+    return list(perf_elapsed_queue)

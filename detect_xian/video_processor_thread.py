@@ -36,12 +36,12 @@ def crop_regions_from_points2(image, final_points):
     return crops
 
 class VideoProcessorThread(threading.Thread):
-    def __init__(self, videos, send_error_func=send_error, interval=(1/3),window=None):
+    def __init__(self, videos, send_error_func=send_error, interval=None,window=None):
         super().__init__()
         self.videos = videos
         self.window = window
         self.send_error_func = send_error_func
-        self.interval = interval
+        self.interval = float(interval) if interval is not None else settings.get_frame_interval()
         self._running = True
         self.video_writer = None
         self.errors_all=[]
@@ -105,6 +105,15 @@ class VideoProcessorThread(threading.Thread):
                     # frame_clean=frame.copy()
 
 
+                    if not getattr(video, "enable_recognition", True):
+                        if int(settings.show_id)==int(video.id) and self.window is not None:
+                            self.window.update_display(frame)
+                        if settings.save:
+                            video.save_img(frame, settings.video_output_paths[int(video.id)] if settings.video_output_paths is not None else settings.video_output_path)
+                        if settings.save_csv:
+                            video.save_img_csv(settings.video_output_paths[int(video.id)] if settings.video_output_paths is not None else settings.video_output_path)
+                        continue
+
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
                     if not video.xian_points:
                         if settings.save:
@@ -116,7 +125,7 @@ class VideoProcessorThread(threading.Thread):
 
                     errors=self.detect_errors(video, frame)
                     if len(errors)>0:
-                        if int(settings.show_id)==int(video.id):
+                        if int(settings.show_id)==int(video.id) and self.window is not None:
                             self.window.update_display(frame)
                         continue
 
@@ -287,7 +296,7 @@ class VideoProcessorThread(threading.Thread):
                         cv2.rectangle(frame, (cx - xw, cy - yh), (cx + xw, cy + yh), (0, 255, 0), 3)
                         self.errors_all.append(Video_error(video, pid, roi, frame, '亮',3))
                         # self.send_error_func(Video_error(video, pid, roi, frame, '亮'))
-                    if int(settings.show_id)==int(video.id):
+                    if int(settings.show_id)==int(video.id) and self.window is not None:
                         self.window.update_display(frame)
                     if settings.save:
                         video.save_img(frame, settings.video_output_paths[int(video.id)] if settings.video_output_paths is not None else settings.video_output_path)
@@ -303,7 +312,7 @@ class VideoProcessorThread(threading.Thread):
             self.errors_all.clear()
             # 控制每轮处理时间
             elapsed = time.time() - start
-            print('总耗时', elapsed)
+            settings.push_elapsed(elapsed)
             time.sleep(max(0, self.interval - elapsed))
 
     def stop(self):
