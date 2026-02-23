@@ -64,8 +64,10 @@ def img_cls_pt(image_list, threshold: float = 0.5, verbose: bool = False):
     batch = []
     for img in image_list:
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        if gray.shape != (40, 40):
-            gray = cv2.resize(gray, (40, 40), interpolation=cv2.INTER_LINEAR)
+        target_w = max(1, int(getattr(settings, "crap_w", 20) * 2))
+        target_h = max(1, int(getattr(settings, "crap_h", 20) * 2))
+        if gray.shape != (target_h, target_w):
+            gray = cv2.resize(gray, (target_w, target_h), interpolation=cv2.INTER_LINEAR)
         x = gray.astype(np.float32) / 255.0
         batch.append(x)
 

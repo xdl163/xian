@@ -1,0 +1,13 @@
+Flask
+PyQt5
+cryptography
+numpy
+opencv-python
+pyarmor
+pycryptodome
+pyinstaller
+pymysql
+pyserial
+pyyaml
+requests
+pyarmor

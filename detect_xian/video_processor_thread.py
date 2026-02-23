@@ -36,12 +36,12 @@ def crop_regions_from_points2(image, final_points):
     return crops
 
 class VideoProcessorThread(threading.Thread):
-    def __init__(self, videos, send_error_func=send_error, interval=(1/3),window=None):
+    def __init__(self, videos, send_error_func=send_error, interval=None,window=None):
         super().__init__()
         self.videos = videos
         self.window = window
         self.send_error_func = send_error_func
-        self.interval = interval
+        self.interval = float(interval) if interval is not None else settings.get_frame_interval()
         self._running = True
         self.video_writer = None
         self.errors_all=[]
@@ -104,6 +104,11 @@ class VideoProcessorThread(threading.Thread):
                         continue
                     # frame_clean=frame.copy()
 
+
+                    if not getattr(video, "enable_recognition", True):
+                        if int(settings.show_id)==int(video.id):
+                            self.window.update_display(frame)
+                        continue
 
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
                     if not video.xian_points:

@@ -34,7 +34,6 @@ class Video:
     * `next_frame()` 从缓冲区弹出 1 帧供外部使用；若缓冲区为空返回 `None`。
     """
     # -------------------- 内部常量 --------------------
-    _SLEEP_WHEN_FULL = 0.5 # 缓冲区满时抓取线程休眠
 
     # -------------------- 构造 --------------------
     def __init__(self, video_path=None, http_url=None, rtsp_url=None,start_t=True):
@@ -108,6 +107,7 @@ class Video:
         self.bg_buffers_green=[]
 
         self.xian_allow_light=None
+        self.enable_recognition = True
 
         self.bg_buffers=None
         self.white_num=None
@@ -245,7 +245,7 @@ class Video:
                 else:
                     need_sleep = False
             if need_sleep:
-                time.sleep(Video._SLEEP_WHEN_FULL)
+                time.sleep(settings.fetch_sleep_full)
                 continue
 
             frame = self._read_raw_frame(session)
@@ -254,12 +254,12 @@ class Video:
                 # 文件视频到结尾直接退出循环
                 if self.video_type == 'file':
                     break
-                time.sleep(0.5)
+                time.sleep(settings.fetch_sleep_idle)
                 continue
 
             with self._buf_lock:
                 self._frame_buffer.append(frame)
-            time.sleep(0.2)
+            time.sleep(settings.fetch_sleep_idle)
 
     # ---------------- 原始读取逻辑抽取 ----------------
     def _read_raw_frame(self,session):
@@ -366,6 +366,7 @@ class Video:
                 "v_min": 178, "v_max": 255
             })
             self.hsv_lower = np.array([self.hsv_range['h_min'], self.hsv_range['s_min'], self.hsv_range['v_min']])
+            self.enable_recognition = bool(data.get('enable_recognition', True))
             self.hsv_upper = np.array([self.hsv_range['h_max'], self.hsv_range['s_max'], self.hsv_range['v_max']])
 
             width = self.frame_width

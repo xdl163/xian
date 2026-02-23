@@ -55,7 +55,7 @@ def load_config(config_path):
     load_all_video(
         config['video_path'],
         IMAGE_SIZE=tuple(config['image_size']),
-        crop_size=tuple(config['crop_size']),
+        crop_size=tuple(config.get('crop_size', [config.get('roi_width', 40), config.get('roi_height', 40)])),
         save=config['save'],
         save_img=config['save_img'],
         save_csv=config['save_csv'],
@@ -77,7 +77,8 @@ def load_config(config_path):
         kernel_ksize2=config['kernel_ksize2'],
         point_max_size=config['point_max_size'],
         model_threshold=config.get('model_threshold', 0.9),
-        model_path=config.get('model_path', 'model_int8.onnx')
+        model_path=config.get('model_path', 'model_int8.onnx'),
+        recognition_fps=float(config.get('recognition_fps', 3.0))
 
     )
 
@@ -98,7 +99,8 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
                     kernel_ksize2=(24, 100),
                     point_max_size=20,
                     model_threshold=0.9,
-                    model_path="model_int8.onnx"
+                    model_path="model_int8.onnx",
+                   recognition_fps=3.0
                    ):
 
     settings.IMAGE_SIZE = IMAGE_SIZE
@@ -107,6 +109,8 @@ def load_all_video(dir_path,IMAGE_SIZE=(1280,720),crop_size=[6,6],
     settings.crap_w=int(crop_size[0]/2)
     settings.crap_h=int(crop_size[1]/2)
     settings.BUF_SIZE=BUF_SIZE
+    settings.recognition_fps=float(recognition_fps)
+    settings.refresh_timing_by_fps()
 
     settings.db_host = db_host
     settings.db_port = db_port

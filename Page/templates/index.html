@@ -28,13 +28,15 @@
           <h3>摄像头列表</h3>
           <label class="inline-check"><input id="toggleDraw" type="checkbox" checked /> 绘制识别框</label>
           <table class="table" id="videoTable">
-            <thead><tr><th>id</th><th>标注</th><th>录制</th></tr></thead>
+            <thead><tr><th>id</th><th>识别</th><th>标注</th><th>录制</th><th>录制文件</th></tr></thead>
             <tbody>
             {% for video in videos %}
               <tr data-id="{{ video.id }}">
                 <td><button class="btn-link id-btn" data-id="{{ video.id }}">{{ video.id }} | {{ video.video_id if video.video_id is not none else '' }} | {{ video.add_type if video.add_type is not none else '' }}</button></td>
+                <td><input class="recognition-toggle" data-id="{{ video.id }}" type="checkbox" {% if video.enable_recognition %}checked{% endif %} /></td>
                 <td><button class="annotate-btn" data-id="{{ video.id }}">标注</button></td>
                 <td><button class="record-btn" data-id="{{ video.id }}">开始录制</button></td>
+                <td><button class="record-list-btn" data-id="{{ video.id }}">查看录制文件</button></td>
               </tr>
             {% endfor %}
             </tbody>
