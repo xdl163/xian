@@ -30,7 +30,6 @@ class RecordingSession:
         self.images_dir.mkdir(parents=True, exist_ok=False)
         self.zips_dir.mkdir(parents=True, exist_ok=True)
 
-        self._stop = threading.Event()
         self._idx = 0
         self._saved = 0
         self._started_at = time.time()
@@ -38,40 +37,26 @@ class RecordingSession:
         self._zip_seq = 0
         self._zip_in_progress = False
 
-        self._worker = threading.Thread(target=self._record_loop, daemon=True)
-        self._zip_worker = threading.Thread(target=self._zip_loop, daemon=True)
-
-    def start(self):
-        self._worker.start()
-        self._zip_worker.start()
-
     def stop(self):
-        self._stop.set()
-        self._worker.join(timeout=3)
-        self._zip_worker.join(timeout=3)
         self._zip_once(force=True)
 
-    def _record_loop(self):
-        while not self._stop.is_set():
-            frame = getattr(self.video, "this_frame", None)
-            if frame is None:
-                time.sleep(0.05)
-                continue
-            self._idx += 1
-            if self._idx % self.options.every_n_frames != 0:
-                time.sleep(0.01)
-                continue
+    def should_stop_by_time(self) -> bool:
+        if self.options.max_hours is None:
+            return False
+        return (time.time() - self._started_at) >= self.options.max_hours * 3600
 
-            if self.options.max_hours is not None and (time.time() - self._started_at) >= self.options.max_hours * 3600:
-                self._stop.set()
-                break
+    def process_frame(self, frame):
+        self._idx += 1
+        if self._idx % self.options.every_n_frames != 0:
+            self._zip_if_needed()
+            return
 
-            snap = frame.copy()
-            if self.options.save_roi:
-                self._save_roi_images(snap)
-            else:
-                self._save_full_image(snap)
-            time.sleep(0.01)
+        snap = frame.copy()
+        if self.options.save_roi:
+            self._save_roi_images(snap)
+        else:
+            self._save_full_image(snap)
+        self._zip_if_needed()
 
     def _save_roi_images(self, frame):
         points = list((getattr(self.video, "xian_points", {}) or {}).items())
@@ -98,15 +83,12 @@ class RecordingSession:
         cv2.imwrite(str(out), frame)
         self._saved += 1
 
-    def _zip_loop(self):
-        while not self._stop.is_set():
-            if self.options.zip_minutes <= 0:
-                time.sleep(1)
-                continue
-            if time.time() - self._last_zip_ts >= self.options.zip_minutes * 60:
-                self._zip_once()
-                self._last_zip_ts = time.time()
-            time.sleep(1)
+    def _zip_if_needed(self):
+        if self.options.zip_minutes <= 0:
+            return
+        if time.time() - self._last_zip_ts >= self.options.zip_minutes * 60:
+            self._zip_once()
+            self._last_zip_ts = time.time()
 
     def _zip_once(self, force: bool = False):
         if self._zip_in_progress:
@@ -154,7 +136,19 @@ class RecordingManager:
                 raise ValueError("name_exists")
             session = RecordingSession(self.camera_dir_name(video), video, cam_dir, options)
             self._sessions[int(video.id)] = session
-            session.start()
+
+    def process_frame(self, video, frame):
+        stop_now = False
+        with self._lock:
+            session = self._sessions.get(int(video.id))
+            if session is None:
+                return
+            if session.should_stop_by_time():
+                stop_now = True
+            else:
+                session.process_frame(frame)
+        if stop_now:
+            self.stop(int(video.id))
 
     def stop(self, video_id: int):
         with self._lock:

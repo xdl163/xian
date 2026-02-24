@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PLC设置</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <section class="panel">
+      <h3>PLC 设置</h3>
+      <p class="tip">优先读取摄像头 YAML 中的 <code>plc</code>；如不存在则使用 PLC_add.yaml 的 videos 默认值。</p>
+      <table class="table" id="plcTable">
+        <thead>
+          <tr>
+            <th>id</th>
+            <th>video_id</th>
+            <th>add_type</th>
+            <th>断线上16寄存器</th>
+            <th>断线后2寄存器</th>
+            <th>报警寄存器</th>
+            <th>报警位</th>
+            <th>在线寄存器</th>
+            <th>在线位</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div class="btn-row">
+        <button id="reloadBtn" type="button">刷新</button>
+        <a class="btn-link" href="/">返回</a>
+      </div>
+      <p id="msg" class="tip"></p>
+    </section>
+  </main>
+
+  <script>
+    window.SETTINGS_PASSWORD = {{ password | tojson }};
+  </script>
+  <script src="{{ url_for('static', filename='js/plc_settings.js') }}"></script>
+</body>
+</html>

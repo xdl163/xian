@@ -4,6 +4,7 @@ import random
 import re
 import threading
 import time
+from pathlib import Path
 
 from collections import deque
 import cv2
@@ -13,6 +14,38 @@ import yaml
 from CamMoveDetector import CamMoveDetector
 from Video_diff import Video_diff
 import  settings
+
+
+
+def _read_plc_defaults() -> dict[str, list[int]]:
+    cfg_path = getattr(settings, "config_path", None)
+    if not cfg_path:
+        return {}
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        plc_yaml_path = Path(str(cfg.get("PLC_yaml", "PLC_add.yaml")))
+        with open(plc_yaml_path, "r", encoding="utf-8") as f:
+            plc_cfg = yaml.safe_load(f) or {}
+        videos = plc_cfg.get("videos", {})
+        if not isinstance(videos, dict):
+            return {}
+        out = {}
+        for key, value in videos.items():
+            if isinstance(value, list) and len(value) >= 6:
+                out[str(key)] = [int(v) for v in value[:6]]
+        return out
+    except Exception:
+        return {}
+
+
+def _normalize_plc(value):
+    if not isinstance(value, list) or len(value) < 6:
+        return None
+    try:
+        return [int(v) for v in value[:6]]
+    except Exception:
+        return None
 
 def extract_ips(text):
     # 匹配 IPv4 地址的正则表达式
@@ -114,6 +147,7 @@ class Video:
 
         self.PLC_add1=1
         self.PLC_add2=2
+        self.plc = [0, 0, 0, 0, 0, 0]
 
         self.csvs=[]
         self.last_state=1
@@ -430,6 +464,11 @@ class Video:
             self._pass_mask     = np.empty(n, dtype=bool)
             self.white_num      = np.zeros(n, dtype=np.uint16)
             # self.bg_buffers_green = [deque(maxlen=10) for _ in range(len(self.xian_points))]
+
+            camera_plc = _normalize_plc(data.get("plc"))
+            if camera_plc is None:
+                camera_plc = _read_plc_defaults().get(str(self.video_id), [0, 0, 0, 0, 0, 0])
+            self.plc = camera_plc
 
             return True
 

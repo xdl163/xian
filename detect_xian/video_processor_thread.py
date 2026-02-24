@@ -71,6 +71,15 @@ class VideoProcessorThread(threading.Thread):
         cv2.putText(image, text, position, font, font_scale, color, thickness, cv2.LINE_AA)
         return image
 
+    def _record_processed_frame(self, video, frame):
+        rm = getattr(settings, "recording_manager", None)
+        if rm is None or frame is None:
+            return
+        try:
+            rm.process_frame(video, frame)
+        except Exception as e:
+            print(f"record frame error: {e}")
+
 
     def run(self):
         # zero_nums_diffs=[]
@@ -106,6 +115,7 @@ class VideoProcessorThread(threading.Thread):
                     if not getattr(video, "enable_recognition", True):
                         if int(settings.show_id)==int(video.id) and self.window is not None:
                             self.window.update_display(frame)
+                        self._record_processed_frame(video, frame)
                         if settings.save:
                             video.save_img(frame, settings.video_output_paths[int(video.id)] if settings.video_output_paths is not None else settings.video_output_path)
                         if settings.save_csv:
@@ -114,6 +124,7 @@ class VideoProcessorThread(threading.Thread):
 
                     # ————————————— 1. 若未配置线点，直接跳过 —————————————
                     if not video.xian_points:
+                        self._record_processed_frame(video, frame)
                         if settings.save:
                             video.save_img(frame,settings.video_output_paths[int(video.id)] if settings.video_output_paths is not None else settings.video_output_path)
                         if settings.save_csv:
@@ -123,6 +134,7 @@ class VideoProcessorThread(threading.Thread):
 
                     errors=self.detect_errors(video, frame)
                     if len(errors)>0:
+                        self._record_processed_frame(video, frame)
                         if int(settings.show_id)==int(video.id) and self.window is not None:
                             self.window.update_display(frame)
                         continue
@@ -271,6 +283,7 @@ class VideoProcessorThread(threading.Thread):
                         cv2.rectangle(frame, (cx - xw, cy - yh), (cx + xw, cy + yh), (0, 255, 0), 3)
                         self.errors_all.append(Video_error(video, pid, roi, frame, '亮',3))
                         # self.send_error_func(Video_error(video, pid, roi, frame, '亮'))
+                    self._record_processed_frame(video, frame)
                     if int(settings.show_id)==int(video.id) and self.window is not None:
                         self.window.update_display(frame)
                     if settings.save:
