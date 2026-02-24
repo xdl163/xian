@@ -51,14 +51,18 @@
       const name = (document.getElementById('rec_name')?.value || '').trim();
       if (!name) return;
       const maxRaw = (document.getElementById('rec_maxh')?.value || '').trim();
+      const saveRoi = !!document.getElementById('rec_roi')?.checked;
+      const everyNFrames = +(document.getElementById('rec_every')?.value || 1);
+      const zipMinutes = +(document.getElementById('rec_zip')?.value || 10);
+      const drawBoxes = !!document.getElementById('rec_draw')?.checked;
       closeModal();
       resolve({
         name,
-        save_roi: !!document.getElementById('rec_roi')?.checked,
-        every_n_frames: +(document.getElementById('rec_every')?.value || 1),
-        zip_minutes: +(document.getElementById('rec_zip')?.value || 10),
+        save_roi: saveRoi,
+        every_n_frames: everyNFrames,
+        zip_minutes: zipMinutes,
         max_hours: maxRaw === '' ? null : +maxRaw,
-        draw_boxes: !!document.getElementById('rec_draw')?.checked,
+        draw_boxes: drawBoxes,
       });
     };
   }); }
