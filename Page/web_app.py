@@ -25,6 +25,7 @@ _state_lock = threading.Lock()
 _event_image_cache_lock = threading.Lock()
 _event_image_cache: dict[str, dict[str, Any]] = {}
 recording_manager = RecordingManager()
+settings.recording_manager = recording_manager
 
 
 def _video_by_id(video_id: int):
